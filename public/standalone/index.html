@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATW - Answer to Wrong | Interactive Quiz System</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN for Standalone distribution -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          boxShadow: {
+            'neu-flat': '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+            'neu-pressed': 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            'neu-card': '6px 6px 14px rgba(166, 180, 200, 0.35), -6px -6px 14px rgba(255, 255, 255, 0.95)',
+            'neu-button': '5px 5px 10px rgba(166, 180, 200, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.9)',
+          },
+          colors: {
+            brand: {
+              50: '#eef6ff',
+              100: '#d9ebff',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+    }
+    .neu-surface {
+      background: #f1f5f9;
+      box-shadow: 6px 6px 14px rgba(180, 192, 208, 0.4), -6px -6px 14px #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+    .neu-inset {
+      background: #e9eff5;
+      box-shadow: inset 4px 4px 8px rgba(180, 192, 208, 0.4), inset -4px -4px 8px #ffffff;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- ================= HEADER ATW ================= -->
+  <header id="main-header" class="sticky top-0 z-40 bg-[#f1f5f9]/90 backdrop-blur-md border-b border-slate-200/80 transition-all">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+      
+      <!-- Brand Logo + Tagline -->
+      <a href="#" id="brand-link" class="flex items-center gap-3 group focus:outline-none">
+        <div class="w-12 h-12 rounded-2xl flex items-center justify-center p-2 neu-surface transition-transform duration-200 group-hover:scale-105">
+          <!-- Logo 3 Tanda Tanya Shock (SVG / Image) -->
+          <img src="/shock.svg" alt="ATW Logo Shock" class="w-full h-full object-contain" onerror="this.src='/public/shock.svg'" />
+        </div>
+        <div class="flex flex-col">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl font-extrabold tracking-tight text-slate-900">ATW</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 tracking-wide">v1.0</span>
+          </div>
+          <span class="text-xs font-medium text-slate-500 tracking-wider">Answer to Wrong</span>
+        </div>
+      </a>
+
+      <!-- Quick Nav Buttons -->
+      <nav class="flex items-center gap-3">
+        <button id="btn-nav-home" class="px-4 py-2 rounded-xl text-sm font-semibold text-blue-600 neu-surface hover:text-blue-700 transition-all">
+          Katalog Kuis
+        </button>
+        <button id="btn-nav-api-doc" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          API & DDL Doc
+        </button>
+      </nav>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main id="app-viewport" class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
+    
+    <!-- State Views Container (Managed by Vanilla JS) -->
+    <div id="view-catalog" class="space-y-8"></div>
+    <div id="view-quiz-player" class="hidden space-y-6"></div>
+    <div id="view-result" class="hidden space-y-6"></div>
+    <div id="view-api-doc" class="hidden space-y-6"></div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-700">ATW</span>
+        <span>• Answer to Wrong Interactive Engine</span>
+      </div>
+      <span>Powered by PHP PDO MySQL / Node.js Express REST API & Vanilla ES6</span>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script src="/standalone/app.js"></script>
+</body>
+</html>

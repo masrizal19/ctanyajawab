@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CTW - Correct Answer | Interactive Diagnosis &amp; Quiz Platform</title>
+  <meta name="description" content="Panel Admin CMS Kuis CTW (Correct Answer) untuk pengelolaan kuis, question builder, opsi jawaban dinamis, dan result rules." />
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          },
+          boxShadow: {
+            'soft-flat': '5px 5px 12px #d1d9e6, -5px -5px 12px #ffffff',
+            'soft-pressed': 'inset 3px 3px 6px #cbd5e1, inset -3px -3px 6px #ffffff',
+            'soft-card': '8px 8px 18px #d1d9e6, -8px -8px 18px #ffffff',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="font-sans bg-[#f1f5f9] text-slate-800 antialiased min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+  <!-- ========================================== -->
+  <!-- ADMIN HEADER                               -->
+  <!-- ========================================== -->
+  <header id="admin-header" class="sticky top-0 z-40 bg-[#f1f5f9]/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- Logo & Admin Title -->
+      <div class="flex items-center gap-3">
+        <!-- Logo Container -->
+        <a href="admin.html" class="w-10 h-10 flex items-center justify-center rounded-2xl bg-white shadow-sm border border-slate-100 p-2">
+          <img src="shock.png" onerror="this.src='/shock.svg'" alt="CTW Logo" class="w-full h-full object-contain" />
+        </a>
+
+        <!-- Brand Name & Tagline -->
+        <div class="flex flex-col justify-center">
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-extrabold text-slate-900 tracking-tight leading-none font-['Inter']">CTW</h1>
+            <span class="px-2 py-0.5 bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider">INTERACTIVE</span>
+          </div>
+          <span class="text-xs font-medium text-slate-500 mt-1 leading-none">Correct Answer</span>
+        </div>
+      </div>
+
+      <!-- Navigation & Auth Status -->
+      <div id="admin-nav-actions" class="flex items-center gap-3">
+        <!-- Supabase Status & Config Button -->
+        <button type="button" id="btn-supabase-status" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span id="supabase-status-label">Supabase SDK</span>
+        </button>
+
+        <a href="quiz.html" target="_blank" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-200 shadow-xs hover:bg-slate-50 transition-all">
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+          <span class="hidden sm:inline">Lihat Tampilan Publik</span>
+          <span class="sm:hidden">Web Publik</span>
+        </a>
+
+        <button id="btn-logout" class="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-all">
+          Keluar
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- MAIN ADMIN CONTENT                         -->
+  <!-- ========================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- State 1: Login Form Modal (If session unauthenticated) -->
+    <div id="view-login" class="hidden max-w-md mx-auto py-12">
+      <div class="p-8 rounded-3xl bg-[#f1f5f9] shadow-soft-card border border-white/80">
+        <div class="text-center mb-6">
+          <div class="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center p-2.5 bg-[#f1f5f9] shadow-soft-flat border border-white/80 mb-4">
+            <img src="shock.png" onerror="this.src='/shock.svg'" alt="CTW Logo" class="w-full h-full object-contain" />
+          </div>
+          <h2 class="text-2xl font-extrabold text-slate-900">Login Administrator</h2>
+          <p class="text-xs text-slate-500 mt-1">Masukkan kredensial admin untuk mengakses panel CMS kuis CTW.</p>
+        </div>
+
+        <form id="form-login" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Username</label>
+            <input type="text" id="login-username" value="admin" required class="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-600 text-sm font-medium" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Password</label>
+            <input type="password" id="login-password" value="admin123" required class="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-600 text-sm font-medium" />
+          </div>
+
+          <div id="login-error-alert" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+            Username atau password salah.
+          </div>
+
+          <button type="submit" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-500/20 active:scale-98 transition-all">
+            Masuk ke Panel CMS
+          </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-slate-200 text-center">
+          <span class="text-[11px] text-slate-400 font-medium">Default kredensial: <code class="text-slate-600 font-bold">admin</code> / <code class="text-slate-600 font-bold">admin123</code></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 2: Main Authenticated Admin CMS Area -->
+    <div id="view-dashboard" class="space-y-8">
+      
+      <!-- Admin CMS Kop Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Panel CMS Kuis &amp; Rules CTW</h2>
+            <span class="text-xs text-slate-500 font-medium">
+              Sesi terotentikasi sebagai <strong class="text-slate-700">Administrator</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Summary Strip -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Kuis</span>
+          <div id="stat-total-quizzes" class="text-2xl font-black text-slate-900 mt-1">3</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Kuis Aktif (Terbit)</span>
+          <div id="stat-active-quizzes" class="text-2xl font-black text-emerald-600 mt-1">3</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Pertanyaan</span>
+          <div id="stat-total-questions" class="text-2xl font-black text-blue-600 mt-1">11</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Partisipan</span>
+          <div id="stat-total-participants" class="text-2xl font-black text-indigo-600 mt-1">8,850+</div>
+        </div>
+      </div>
+
+      <!-- Top Section Tabs: List Quizzes vs Create/Edit Form -->
+      <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div class="flex items-center gap-2">
+          <button id="tab-quiz-list" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 text-white shadow-sm transition-all">
+            Daftar Kuis
+          </button>
+          <button id="tab-quiz-builder" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 shadow-xs transition-all">
+            + Buat Kuis Baru
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 1: DAFTAR KUIS (QUIZ CRUD & SHAREABLE LINK) -->
+      <section id="section-quiz-list">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+          <div class="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Manajemen Kuis Terdaftar</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Kelola seluruh kuis, dapatkan link shareable kuis publik, edit pertanyaan, atau hapus kuis.</p>
+            </div>
+            <button id="btn-create-quiz-shortcut" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              <span>Tambah Kuis Baru</span>
+            </button>
+          </div>
+
+          <!-- Quizzes Table Container -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+              <thead class="bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200/80">
+                <tr>
+                  <th class="px-6 py-3.5">Kuis &amp; Kategori</th>
+                  <th class="px-6 py-3.5">Status</th>
+                  <th class="px-6 py-3.5">Pertanyaan</th>
+                  <th class="px-6 py-3.5">Partisipan</th>
+                  <th class="px-6 py-3.5 text-right">Aksi &amp; Shareable Link</th>
+                </tr>
+              </thead>
+              <tbody id="admin-quiz-tbody" class="divide-y divide-slate-100 font-medium">
+                <!-- Injected dynamically via admin.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: FORM EDITOR KUIS (QUESTION & OPTION BUILDER + RESULT RULES) -->
+      <section id="section-quiz-builder" class="hidden space-y-6">
+        
+        <form id="form-save-quiz">
+          <input type="hidden" id="field-quiz-id" value="" />
+
+          <!-- A. INFORMASI UTAMA KUIS -->
+          <div class="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-6">
+            <div class="border-b border-slate-100 pb-4 flex items-center justify-between">
+              <div>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700">
+                  Langkah 1
+                </span>
+                <h3 class="text-lg font-bold text-slate-900 mt-1">Informasi Dasar Kuis</h3>
+              </div>
+              <span id="builder-mode-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+                Mode: Kuis Baru
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Judul Kuis <span class="text-rose-500">*</span>
+                </label>
+                <input type="text" id="field-quiz-title" required placeholder="Contoh: Tes Pemetaan Karir Teknologi" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:border-blue-600 text-sm font-medium" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Kategori
+                </label>
+                <input type="text" id="field-quiz-category" placeholder="Teknologi &amp; Desain" list="category-presets" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:border-blue-600 text-sm font-medium" />
+                <datalist id="category-presets">
+                  <option value="Teknologi &amp; Desain"></option>
+                  <option value="Karir &amp; Bisnis"></option>
+                  <option value="Gaya Hidup &amp; Produktivitas"></option>
+                  <option value="Pendidikan &amp; Sains"></option>
+                  <option value="Umum"></option>
+                </datalist>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Slug URL (Otomatis / Opsional)
+                </label>
+                <input type="text" id="field-quiz-slug" placeholder="pemetaan-karir-teknologi" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:border-blue-600 text-sm font-medium" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Status Publikasi
+                </label>
+                <select id="field-quiz-status" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:border-blue-600 text-sm font-medium">
+                  <option value="active">Published (Tersedia untuk Pengguna)</option>
+                  <option value="draft">Draft (Disembunyikan dari Publik)</option>
+                </select>
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Deskripsi Kuis
+                </label>
+                <textarea id="field-quiz-description" rows="2" placeholder="Jelaskan tujuan evaluasi atau sasaran kuis ini..." class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:border-blue-600 text-sm font-medium"></textarea>
+              </div>
+
+              <!-- Thumbnail Kuis (Supabase Storage 'quiz-assets') -->
+              <div class="md:col-span-2 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Thumbnail Kuis (Upload ke Supabase Storage Bucket: <code class="text-blue-600 font-mono">quiz-assets</code>)
+                </label>
+                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <input type="file" id="field-quiz-thumbnail-file" accept="image/*" class="block w-full sm:w-auto text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer transition-all" />
+                  <input type="hidden" id="field-quiz-thumbnail-url" value="" />
+                  <div id="thumbnail-preview-container" class="hidden flex items-center gap-3">
+                    <img id="thumbnail-preview-img" src="" alt="Preview" class="w-14 h-14 object-cover rounded-xl border border-slate-200 shadow-2xs" />
+                    <button type="button" id="btn-remove-thumbnail" class="text-xs text-rose-600 hover:text-rose-700 font-semibold underline">
+                      Hapus Gambar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- B. QUESTION & OPTION BUILDER (MANAJEMEN SOAL & OPSI) -->
+          <div class="mt-8 p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-6">
+            <div class="border-b border-slate-100 pb-4 flex items-center justify-between">
+              <div>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700">
+                  Langkah 2
+                </span>
+                <h3 class="text-lg font-bold text-slate-900 mt-1">Question &amp; Option Builder</h3>
+                <p class="text-xs text-slate-500">Tambahkan pertanyaan kuis dan atur 2-4 pilihan jawaban beserta bobot skor &amp; kode hasil.</p>
+              </div>
+
+              <button type="button" id="btn-add-question" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                <span>+ Tambah Pertanyaan</span>
+              </button>
+            </div>
+
+            <!-- Dynamic Question Cards Container -->
+            <div id="builder-questions-container" class="space-y-6">
+              <!-- Injected via admin.js -->
+            </div>
+          </div>
+
+          <!-- C. RESULT RULES SETTING (ATURAN HASIL AKHIR) -->
+          <div class="mt-8 p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-6">
+            <div class="border-b border-slate-100 pb-4 flex items-center justify-between">
+              <div>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                  Langkah 3
+                </span>
+                <h3 class="text-lg font-bold text-slate-900 mt-1">Aturan Penentuan Hasil Akhir (Result Rules)</h3>
+                <p class="text-xs text-slate-500">Petakan total skor atau kode dominan ke judul hasil, badge pencapaian, dan deskripsi.</p>
+              </div>
+
+              <button type="button" id="btn-add-rule" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                <span>+ Tambah Aturan Hasil</span>
+              </button>
+            </div>
+
+            <!-- Dynamic Result Rules Container -->
+            <div id="builder-rules-container" class="space-y-4">
+              <!-- Injected via admin.js -->
+            </div>
+          </div>
+
+          <!-- Action Save Bar -->
+          <div class="mt-8 p-6 rounded-3xl bg-[#f1f5f9] border border-slate-200 flex items-center justify-between gap-4">
+            <button type="button" id="btn-cancel-builder" class="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 transition-all">
+              Batal &amp; Kembali
+            </button>
+
+            <div class="flex items-center gap-3">
+              <button type="submit" id="btn-submit-save" class="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 active:scale-95 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Simpan &amp; Terbitkan Kuis</span>
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- TOAST / MODAL FOR SHAREABLE LINK           -->
+  <!-- ========================================== -->
+  <div id="modal-share-link" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+            &check;
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm">Link Kuis Siap Dibagikan</h4>
+        </div>
+        <button id="btn-close-share-modal" class="text-slate-400 hover:text-slate-600">
+          &times;
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600">
+        Kuis telah diterbitkan. Bagikan tautan unik di bawah ini kepada peserta kuis:
+      </p>
+
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+        <input type="text" id="input-shareable-url" readonly class="w-full bg-transparent text-xs font-mono text-slate-700 focus:outline-none select-all" />
+        <button id="btn-copy-modal-url" class="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold">
+          Salin
+        </button>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <a id="link-open-quiz-direct" href="#" target="_blank" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800">
+          Buka Kuis Langsung &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL PENGATURAN SUPABASE INTEGRATION     -->
+  <!-- ========================================== -->
+  <div id="modal-supabase-config" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 transition-all">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900">Konfigurasi Supabase Client</h3>
+            <p class="text-xs text-slate-500">Database Relasional &amp; Storage Bucket (CDN Client-Side)</p>
+          </div>
+        </div>
+        <button id="btn-close-supabase-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 leading-relaxed">
+          <strong>Direct Client-Side Integration:</strong> Data kuis, pertanyaan, opsi, aturan hasil, log pengerjaan, dan upload thumbnail (<code class="font-mono bg-emerald-100 px-1 py-0.5 rounded">quiz-assets</code>) terhubung langsung melalui Supabase JavaScript SDK v2.
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+            VITE_SUPABASE_URL
+          </label>
+          <input type="text" id="input-supabase-url" placeholder="https://your-project.supabase.co" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono focus:bg-white focus:outline-none focus:border-blue-600" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+            VITE_SUPABASE_ANON_KEY (Publishable Key)
+          </label>
+          <input type="password" id="input-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono focus:bg-white focus:outline-none focus:border-blue-600" />
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <button type="button" id="btn-cancel-supabase" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">
+          Tutup
+        </button>
+        <button type="button" id="btn-save-supabase-config" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20">
+          Simpan &amp; Hubungkan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL KONFIRMASI HAPUS (DELETE CONFIRMATION)-->
+  <!-- ========================================== -->
+  <div id="modal-delete-confirm" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 transition-all">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp">
+      <!-- Icon & Header Warning -->
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200 shadow-2xs">
+          <!-- Warning Alert Icon -->
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+        </div>
+        <div class="space-y-1">
+          <h3 id="delete-modal-title" class="text-lg font-extrabold text-slate-900 leading-snug">
+            Hapus Kuis Ini?
+          </h3>
+          <p id="delete-modal-message" class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Apakah Anda yakin ingin menghapus kuis ini? Tindakan ini akan menghapus semua pertanyaan, opsi jawaban, dan riwayat hasil terkait secara permanen dan tidak dapat dibatalkan.
+          </p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <button type="button" id="btn-cancel-delete" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all active:scale-95">
+          Batal
+        </button>
+        <button type="button" id="btn-confirm-delete" class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-rose-500/20 active:scale-95 transition-all">
+          <span id="btn-confirm-delete-text">Ya, Hapus Kuis</span>
+          <svg id="btn-confirm-delete-spinner" class="hidden w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Pop (Pojok Atas) -->
+  <div id="admin-toast" class="hidden fixed top-6 right-6 z-50 px-4 py-3 bg-slate-900/95 backdrop-blur-md text-white text-xs sm:text-sm font-bold rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 transition-all transform duration-300">
+    <div class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+    </div>
+    <span id="admin-toast-message">Tersimpan</span>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- ADMIN FOOTER                               -->
+  <!-- ========================================== -->
+  <footer class="border-t border-slate-200/80 bg-white/50 backdrop-blur-sm py-6 text-center text-xs text-slate-500 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="font-extrabold text-slate-800">CTW</span>
+        <span>• Correct Answer Interactive Platform</span>
+      </div>
+      <div class="flex items-center gap-4 text-slate-400">
+        <a href="/quiz.html" class="hover:text-blue-600 transition-colors">
+          Halaman Kuis Publik (quiz.html)
+        </a>
+        <span>•</span>
+        <a href="/admin.html" class="hover:text-blue-600 transition-colors">
+          Halaman Admin CMS (admin.html)
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Supabase JS SDK v2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase Client & Data Integration -->
+  <script src="/js/supabaseClient.js"></script>
+  <!-- Vanilla JS Admin Script -->
+  <script src="/js/admin.js"></script>
+</body>
+</html>

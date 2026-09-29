@@ -1,0 +1,6 @@
+{
+  "name": "CTW - Correct Answer",
+  "description": "Aplikasi Web Kuis & Tanya Jawab Interaktif CTW (Correct Answer) dengan dynamic scoring engine, skema database lengkap, Supabase CRUD & backend REST API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

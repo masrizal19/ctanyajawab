@@ -1,0 +1,145 @@
+name: CI/CD Pipeline - CTW Correct Answer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ===================================================
+  # JOB 1: BUILD & VERIFY
+  # ===================================================
+  build:
+    name: Build & Test Application
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: 4. Type Check & Linting
+        run: npm run lint
+        continue-on-error: true
+
+      - name: 5. Build Vite SPA & Server Bundle
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          NODE_ENV: production
+        run: npm run build
+
+      - name: 6. Prepare Static Artifacts for Hosting
+        run: |
+          # Pastikan file static public (admin.html, quiz.html, shock.svg/png) tersedia di dist/
+          echo "Verifikasi file build di direktori dist:"
+          ls -la dist/
+
+      - name: 7. Upload Build Artifact (for GitHub Pages / Deploy jobs)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  # ===================================================
+  # JOB 2: DEPLOYMENT (Pilih salah satu target hosting)
+  # ===================================================
+
+  # ---------------------------------------------------
+  # OPSI A: DEPLOY KE GITHUB PAGES (Default Active)
+  # ---------------------------------------------------
+  deploy-github-pages:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------
+  # OPSI B: DEPLOY KE VERCEL (Uncomment jika menggunakan Vercel)
+  # ---------------------------------------------------
+  # deploy-vercel:
+  #   name: Deploy to Vercel
+  #   needs: build
+  #   if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout Repository
+  #       uses: actions/checkout@v4
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #     - name: Install Vercel CLI
+  #       run: npm install --global vercel@latest
+  #     - name: Pull Vercel Environment Information
+  #       run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+  #     - name: Build Project Artifacts
+  #       run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+  #     - name: Deploy Project Artifacts to Vercel
+  #       run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+  #       env:
+  #         VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  #         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ---------------------------------------------------
+  # OPSI C: DEPLOY KE NETLIFY (Uncomment jika menggunakan Netlify)
+  # ---------------------------------------------------
+  # deploy-netlify:
+  #   name: Deploy to Netlify
+  #   needs: build
+  #   if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout Repository
+  #       uses: actions/checkout@v4
+  #     - name: Download Build Artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: github-pages
+  #         path: dist/
+  #     - name: Deploy to Netlify
+  #       uses: nwtgck/actions-netlify@v3.0
+  #       with:
+  #         publish-dir: './dist'
+  #         production-branch: main
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         deploy-message: "Deploy from GitHub Actions (Commit: ${{ github.sha }})"
+  #         enable-pull-request-comment: false
+  #         enable-commit-comment: true
+  #         overwrites-pull-request-comment: true
+  #       env:
+  #         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  #         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
