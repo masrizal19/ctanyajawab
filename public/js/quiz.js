@@ -160,18 +160,13 @@
   // Load Single Quiz by ID or Slug via Supabase SDK Client
   async function loadQuiz(quizId) {
     showView('loading');
+    const cleanId = String(quizId || '').trim();
     try {
       // Update URL query without full page reload
-      const newUrl = `${window.location.pathname}?id=${quizId}`;
-      window.history.pushState({ id: quizId }, '', newUrl);
+      const newUrl = `${window.location.pathname}?id=${encodeURIComponent(cleanId)}`;
+      window.history.pushState({ id: cleanId }, '', newUrl);
 
-      // Relational Supabase query:
-      // const { data, error } = await supabase
-      //   .from('quizzes')
-      //   .select('*, questions(*, options(*)), result_rules(*)')
-      //   .eq('id', quizId)
-      //   .single();
-      const quizData = await window.ATWSupabase.fetchQuizDetail(quizId);
+      const quizData = await window.ATWSupabase.fetchQuizDetail(cleanId);
 
       state.currentQuiz = quizData.quiz;
       state.questions = quizData.questions || [];
@@ -181,17 +176,15 @@
       userSelections = [];
       state.finalResult = null;
 
-      if (state.questions.length === 0) {
-        alert('Kuis ini belum memiliki daftar pertanyaan.');
-        loadCatalog();
-        return;
+      if (!state.questions || state.questions.length === 0) {
+        throw new Error('Kuis ini belum memiliki daftar pertanyaan.');
       }
 
       initPlayer();
       showView('player');
     } catch (err) {
       console.error('Gagal memuat kuis:', err);
-      alert('Maaf, kuis tidak ditemukan atau gagal dimuat: ' + err.message);
+      alert('Maaf, kuis tidak ditemukan atau gagal dimuat: ' + (err.message || 'Periksa koneksi database.'));
       loadCatalog();
     }
   }
@@ -636,7 +629,7 @@
     const quizId = urlParams.get('id');
 
     if (quizId) {
-      loadQuiz(parseInt(quizId, 10));
+      loadQuiz(String(quizId).trim());
     } else {
       loadCatalog();
     }
