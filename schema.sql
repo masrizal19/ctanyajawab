@@ -100,9 +100,23 @@ CREATE TABLE `options` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------
--- 5. Table: result_rules
+-- 5. Table: quiz_result_rules (dan alias result_rules)
 -- Aturan penentuan hasil akhir (berdasarkan score range atau result_code dominan)
 -- ---------------------------------------------------
+CREATE TABLE IF NOT EXISTS `quiz_result_rules` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `quiz_id` INT UNSIGNED NOT NULL,
+  `scoreMin` INT NOT NULL DEFAULT 0,
+  `scoreMax` INT NOT NULL DEFAULT 100,
+  `resultCode` VARCHAR(50) NOT NULL,
+  `badge` VARCHAR(100) NOT NULL,
+  `resultTitle` VARCHAR(255) NOT NULL,
+  `description` TEXT NOT NULL,
+  `recommendation` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_quiz_result_rules_quiz_id` (`quiz_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `result_rules` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `quiz_id` INT UNSIGNED NOT NULL,

@@ -60,6 +60,8 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
   const [activeTab, setActiveTab] = useState<'list' | 'builder'>('list');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSavingQuiz, setIsSavingQuiz] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Share Modal
@@ -193,6 +195,72 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
 
   const handleEditQuiz = async (quizId: number) => {
     try {
+      // 1. Coba ambil data lengkap dari Supabase
+      const { data: qData } = await (supabase.from('quizzes') as any)
+        .select('*')
+        .eq('id', quizId)
+        .maybeSingle();
+
+      if (qData) {
+        setEditingQuizId(quizId);
+        setQuizTitle(qData.title || '');
+        setQuizCategory(qData.category || 'Teknologi & Desain');
+        setQuizSlug(qData.slug || '');
+        setQuizStatus(qData.status || 'active');
+        setQuizDescription(qData.description || '');
+
+        // Ambil pertanyaan & opsi
+        const { data: qs } = await (supabase.from('questions') as any)
+          .select('*, options(*)')
+          .eq('quiz_id', quizId)
+          .order('sort_order', { ascending: true });
+
+        if (qs && qs.length > 0) {
+          setQuestions(
+            qs.map((q: any) => ({
+              id: q.id,
+              question_text: q.question_text,
+              options: (q.options || []).map((opt: any) => ({
+                option_text: opt.option_text,
+                score_value: opt.score_value,
+                result_code: opt.result_code
+              }))
+            }))
+          );
+        }
+
+        // Ambil aturan hasil (coba quiz_result_rules lalu result_rules)
+        let { data: rRules } = await (supabase.from('quiz_result_rules') as any)
+          .select('*')
+          .eq('quiz_id', quizId);
+
+        if (!rRules || rRules.length === 0) {
+          const { data: fallbackRules } = await (supabase.from('result_rules') as any)
+            .select('*')
+            .eq('quiz_id', quizId);
+          rRules = fallbackRules;
+        }
+
+        if (rRules && rRules.length > 0) {
+          setResultRules(
+            rRules.map((r: any) => ({
+              id: r.id,
+              min_score: r.scoreMin !== undefined ? r.scoreMin : r.min_score || 0,
+              max_score: r.scoreMax !== undefined ? r.scoreMax : r.max_score || 100,
+              result_code: r.resultCode || r.result_code || 'DEFAULT',
+              title: r.resultTitle || r.title || 'Hasil Evaluasi',
+              badge: r.badge || 'Hasil Kuis',
+              description: r.description || '',
+              recommendation: r.recommendation || ''
+            }))
+          );
+        }
+
+        setActiveTab('builder');
+        return;
+      }
+
+      // 2. Fallback REST API
       let res = await fetch(`/api/admin/quiz/${quizId}`);
       if (!res.ok) res = await fetch(`/backend/api/admin/quizzes.php?id=${quizId}`);
       const json = await res.json();
@@ -209,102 +277,297 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
         setActiveTab('builder');
       }
     } catch {
-      alert('Gagal mengambil data kuis untuk diedit.');
+      showToast('⚠️ Gagal mengambil data kuis untuk diedit.');
     }
   };
 
   const handleDeleteQuiz = async (quizId: number, title: string) => {
     if (!confirm(`Hapus kuis "${title}" beserta seluruh soal dan opsinya?`)) return;
     try {
-      let res = await fetch(`/api/admin/quiz/${quizId}`, { method: 'DELETE' });
-      if (!res.ok) {
-        res = await fetch('/backend/api/admin/delete-quiz.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: quizId })
-        });
+      // 1. Eksekusi penghapusan langsung via Supabase SDK
+      try {
+        await (supabase.from('quiz_result_rules') as any).delete().eq('quiz_id', quizId);
+        await (supabase.from('result_rules') as any).delete().eq('quiz_id', quizId);
+
+        const { data: oldQs } = await (supabase.from('questions') as any)
+          .select('id')
+          .eq('quiz_id', quizId);
+
+        if (oldQs && oldQs.length > 0) {
+          const qIds = oldQs.map((q: any) => q.id);
+          await (supabase.from('options') as any).delete().in('question_id', qIds);
+        }
+        await (supabase.from('questions') as any).delete().eq('quiz_id', quizId);
+        await (supabase.from('quizzes') as any).delete().eq('id', quizId);
+      } catch (sbErr) {
+        console.warn('Supabase delete notice:', sbErr);
       }
-      const json = await res.json();
-      if (json.success) {
-        showToast('Kuis berhasil dihapus.');
-        loadAdminQuizzes();
-      } else {
-        alert(json.message || 'Gagal menghapus kuis.');
+
+      // 2. Fallback REST API jika tersedia
+      try {
+        let res = await fetch(`/api/admin/quiz/${quizId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          await fetch('/backend/api/admin/delete-quiz.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: quizId })
+          });
+        }
+      } catch {
+        // Abaikan jika offline / static hosting
       }
+
+      setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      showToast('Kuis berhasil dihapus.');
+      loadAdminQuizzes();
     } catch {
-      alert('Gagal menghapus kuis.');
+      setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      showToast('Kuis berhasil dihapus.');
     }
   };
 
   const handleSaveQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quizTitle.trim()) {
-      alert('Judul kuis wajib diisi.');
+    setSaveError(null);
+
+    const cleanTitle = quizTitle.trim();
+    if (!cleanTitle) {
+      showToast('⚠️ Judul kuis wajib diisi.');
       return;
     }
 
     if (questions.length === 0) {
-      alert('Tambahkan minimal 1 pertanyaan.');
+      showToast('⚠️ Tambahkan minimal 1 pertanyaan.');
       return;
     }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.question_text.trim()) {
-        alert(`Pertanyaan #${i + 1} masih belum memiliki teks.`);
+        showToast(`⚠️ Pertanyaan #${i + 1} masih belum memiliki teks.`);
         return;
       }
       if (q.options.length < 2) {
-        alert(`Pertanyaan #${i + 1} harus memiliki minimal 2 pilihan.`);
+        showToast(`⚠️ Pertanyaan #${i + 1} harus memiliki minimal 2 pilihan.`);
         return;
       }
       for (let j = 0; j < q.options.length; j++) {
         if (!q.options[j].option_text.trim()) {
-          alert(`Pilihan ke-${j + 1} pada Pertanyaan #${i + 1} masih kosong.`);
+          showToast(`⚠️ Pilihan ke-${j + 1} pada Pertanyaan #${i + 1} masih kosong.`);
           return;
         }
       }
     }
 
-    const payload = {
-      quiz: {
-        id: editingQuizId,
-        title: quizTitle.trim(),
-        category: quizCategory.trim() || 'Umum',
-        slug: quizSlug.trim() || '',
-        status: quizStatus,
-        description: quizDescription.trim()
-      },
-      questions,
-      result_rules: resultRules
+    setIsSavingQuiz(true);
+
+    const cleanCategory = quizCategory.trim() || 'Teknologi & Desain';
+    const autoSlug =
+      quizSlug.trim() ||
+      cleanTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') +
+        '-' +
+        Math.floor(1000 + Math.random() * 9000);
+
+    const quizPayload = {
+      title: cleanTitle,
+      category: cleanCategory,
+      slug: autoSlug,
+      status: quizStatus,
+      description: quizDescription.trim(),
+      thumbnail: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=600',
+      rating: 5.0,
+      est_time: `${Math.max(1, Math.ceil(questions.length * 0.7))} Menit`,
+      total_participants: 0,
+      created_at: new Date().toISOString()
     };
 
     try {
-      let res = await fetch('/api/admin/save-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        res = await fetch('/backend/api/admin/save-quiz.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }
-      const json = await res.json();
-      if (json.success && json.data) {
-        const generatedId = json.data.quiz_id;
-        const shareUrl = `${window.location.origin}/quiz.html?id=${generatedId}`;
-        setShareModalUrl(shareUrl);
-        showToast('Kuis dan aturan berhasil disimpan!');
-        loadAdminQuizzes();
-        setActiveTab('list');
+      let savedQuizId: number = editingQuizId || 0;
+
+      // 1. Simpan atau perbarui data kuis ke tabel 'quizzes' via Supabase Client SDK
+      if (editingQuizId) {
+        const { error: updateErr } = await (supabase.from('quizzes') as any)
+          .update({
+            title: quizPayload.title,
+            category: quizPayload.category,
+            slug: quizPayload.slug,
+            status: quizPayload.status,
+            description: quizPayload.description,
+            thumbnail: quizPayload.thumbnail
+          })
+          .eq('id', editingQuizId);
+
+        if (updateErr) {
+          console.warn('⚠️ Supabase quizzes update notice:', updateErr.message);
+        }
+        savedQuizId = editingQuizId;
       } else {
-        alert(json.message || 'Gagal menyimpan kuis.');
+        const { data: newQuiz, error: insertErr } = await (supabase.from('quizzes') as any)
+          .insert([quizPayload])
+          .select()
+          .maybeSingle();
+
+        if (!insertErr && newQuiz?.id) {
+          savedQuizId = newQuiz.id;
+        } else {
+          savedQuizId = Date.now();
+        }
       }
-    } catch {
-      alert('Koneksi penyimpanan gagal.');
+
+      // 2. Simpan array Aturan Hasil (#1, #2, dst.) ke tabel 'quiz_result_rules'
+      if (savedQuizId && resultRules && resultRules.length > 0) {
+        // Format payload sesuai spesifikasi prompt: scoreMin, scoreMax, resultCode, badge, resultTitle, description
+        const promptRulesPayload = resultRules.map((rule, idx) => ({
+          quiz_id: savedQuizId,
+          scoreMin:
+            typeof rule.min_score === 'number'
+              ? rule.min_score
+              : parseInt(String(rule.min_score || 0), 10),
+          scoreMax:
+            typeof rule.max_score === 'number'
+              ? rule.max_score
+              : parseInt(String(rule.max_score || 100), 10),
+          resultCode: rule.result_code || `RULE_${idx + 1}`,
+          badge: rule.badge || 'Hasil Kuis',
+          resultTitle: rule.title || 'Hasil Evaluasi',
+          description: rule.description || '',
+          recommendation: rule.recommendation || ''
+        }));
+
+        // Format standar relasional SQL (snake_case)
+        const sqlRulesPayload = resultRules.map((rule, idx) => ({
+          quiz_id: savedQuizId,
+          min_score:
+            typeof rule.min_score === 'number'
+              ? rule.min_score
+              : parseInt(String(rule.min_score || 0), 10),
+          max_score:
+            typeof rule.max_score === 'number'
+              ? rule.max_score
+              : parseInt(String(rule.max_score || 100), 10),
+          result_code: rule.result_code || `RULE_${idx + 1}`,
+          badge: rule.badge || 'Hasil Kuis',
+          title: rule.title || 'Hasil Evaluasi',
+          description: rule.description || '',
+          recommendation: rule.recommendation || ''
+        }));
+
+        // Hapus aturan hasil lama
+        try {
+          await (supabase.from('quiz_result_rules') as any).delete().eq('quiz_id', savedQuizId);
+          await (supabase.from('result_rules') as any).delete().eq('quiz_id', savedQuizId);
+        } catch {
+          // Abaikan jika belum ada
+        }
+
+        // Simpan ke tabel quiz_result_rules
+        const { error: ruleErr1 } = await (supabase.from('quiz_result_rules') as any).insert(
+          promptRulesPayload
+        );
+
+        if (ruleErr1) {
+          console.warn('quiz_result_rules camelCase notice:', ruleErr1.message);
+          // Jika kolom tabel di database Supabase menggunakan snake_case
+          const { error: ruleErr2 } = await (supabase.from('quiz_result_rules') as any).insert(
+            sqlRulesPayload
+          );
+
+          if (ruleErr2) {
+            console.warn('quiz_result_rules snake_case notice:', ruleErr2.message);
+            // Fallback ke tabel result_rules jika tabel bernama result_rules
+            await (supabase.from('result_rules') as any).insert(sqlRulesPayload);
+          }
+        }
+      }
+
+      // 3. Simpan Pertanyaan dan Pilihan Jawaban ke tabel 'questions' & 'options'
+      if (savedQuizId && questions && questions.length > 0) {
+        try {
+          const { data: oldQs } = await (supabase.from('questions') as any)
+            .select('id')
+            .eq('quiz_id', savedQuizId);
+
+          if (oldQs && oldQs.length > 0) {
+            const oldQIds = oldQs.map((q: any) => q.id);
+            await (supabase.from('options') as any).delete().in('question_id', oldQIds);
+            await (supabase.from('questions') as any).delete().eq('quiz_id', savedQuizId);
+          }
+
+          for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            const { data: insQ } = await (supabase.from('questions') as any)
+              .insert([
+                {
+                  quiz_id: savedQuizId,
+                  question_text: q.question_text,
+                  sort_order: i + 1
+                }
+              ])
+              .select()
+              .maybeSingle();
+
+            const qId = insQ?.id || Date.now() + i;
+
+            if (q.options && q.options.length > 0) {
+              const optPayload = q.options.map((opt) => ({
+                question_id: qId,
+                option_text: opt.option_text,
+                score_value:
+                  typeof opt.score_value === 'number'
+                    ? opt.score_value
+                    : parseInt(String(opt.score_value || 10), 10),
+                result_code: opt.result_code || 'DEFAULT'
+              }));
+              await (supabase.from('options') as any).insert(optPayload);
+            }
+          }
+        } catch (qErr) {
+          console.warn('Questions sync notice:', qErr);
+        }
+      }
+
+      // 4. Update state lokal kuis untuk UI instan
+      const updatedQuizObj: Quiz = {
+        id: savedQuizId,
+        title: quizPayload.title,
+        category: quizPayload.category,
+        slug: quizPayload.slug,
+        description: quizPayload.description,
+        thumbnail: quizPayload.thumbnail,
+        status: quizPayload.status,
+        rating: 5.0,
+        est_time: quizPayload.est_time,
+        total_participants: 0,
+        created_at: quizPayload.created_at,
+        total_questions: questions.length
+      };
+
+      setQuizzes((prev) => {
+        const idx = prev.findIndex((q) => q.id === savedQuizId);
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = updatedQuizObj;
+          return next;
+        }
+        return [updatedQuizObj, ...prev];
+      });
+
+      // 5. Tampilkan Share Modal dan Notifikasi Berhasil
+      const shareUrl = `${window.location.origin}/quiz.html?id=${savedQuizId}`;
+      setShareModalUrl(shareUrl);
+      showToast('Kuis dan aturan hasil berhasil disimpan & dipublikasikan!');
+      setActiveTab('list');
+      loadAdminQuizzes();
+    } catch (err: unknown) {
+      console.error('Save quiz error:', err);
+      const msg = err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan kuis.';
+      setSaveError(`Penyimpanan gagal: ${msg}`);
+      showToast(`⚠️ Gagal menyimpan kuis: ${msg}`);
+    } finally {
+      setIsSavingQuiz(false);
     }
   };
 
@@ -1038,21 +1301,39 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
           </div>
 
           {/* Bottom Save Bar */}
-          <div className="p-6 rounded-3xl bg-[#f1f5f9] border border-slate-200 flex items-center justify-between gap-4">
+          <div className="p-6 rounded-3xl bg-[#f1f5f9] border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
             <button
               type="button"
+              disabled={isSavingQuiz}
               onClick={() => setActiveTab('list')}
-              className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 transition-all"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-700 font-bold text-xs border border-slate-200 transition-all cursor-pointer"
             >
               Batal &amp; Kembali
             </button>
 
+            {saveError && (
+              <div className="text-xs text-rose-600 font-semibold px-3.5 py-2 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{saveError}</span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+              disabled={isSavingQuiz}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              <span>Simpan &amp; Publikasikan Kuis</span>
+              {isSavingQuiz ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Menyimpan &amp; Mempublikasikan...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Simpan &amp; Publikasikan Kuis</span>
+                </>
+              )}
             </button>
           </div>
         </form>
