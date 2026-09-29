@@ -8,7 +8,17 @@
 
   // Admin State
   const state = {
-    token: localStorage.getItem('atw_admin_token') || null,
+    token: (() => {
+      const sess = localStorage.getItem('ctw_admin_session');
+      if (sess) {
+        try {
+          return JSON.parse(sess)?.token || 'ctw_session_active';
+        } catch (e) {
+          return 'ctw_session_active';
+        }
+      }
+      return localStorage.getItem('atw_admin_token') || null;
+    })(),
     quizzes: [],
     editingQuizId: null,
     builder: {
@@ -126,37 +136,70 @@
     }
   }
 
-  // Handle Login
+  // Handle Login via Supabase direct query (supabase.from('admin_users'))
   async function handleLogin(e) {
     e.preventDefault();
     const username = els.loginUsername.value.trim();
     const password = els.loginPassword.value.trim();
 
-    try {
-      let res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
+    if (!username || !password) {
+      if (els.loginErrorAlert) {
+        els.loginErrorAlert.textContent = 'Mohon masukkan username dan password.';
+        els.loginErrorAlert.classList.remove('hidden');
+      }
+      return;
+    }
 
-      if (!res.ok) {
-        res = await fetch('/backend/api/admin/login.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
+    try {
+      // 1. Query otentikasi langsung ke tabel admin_users via Supabase SDK
+      const client = window.ATWSupabase?.getClient() || window.supabase;
+      if (client && typeof client.from === 'function') {
+        const { data, error } = await client
+          .from('admin_users')
+          .select('*')
+          .eq('username', username)
+          .eq('password', password)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Supabase auth notice:', error.message);
+        } else if (data) {
+          const sessionData = {
+            id: data.id || 1,
+            username: data.username || username,
+            role: data.role || 'admin',
+            token: data.token || 'ctw_session_' + Date.now(),
+            logged_at: new Date().toISOString()
+          };
+          localStorage.setItem('ctw_admin_session', JSON.stringify(sessionData));
+          localStorage.setItem('atw_admin_token', sessionData.token);
+          state.token = sessionData.token;
+          if (els.loginErrorAlert) els.loginErrorAlert.classList.add('hidden');
+          checkAuth();
+          showToast('Selamat datang di Panel Admin CTW');
+          return;
+        }
       }
 
-      const json = await res.json();
-      if (json.success && json.data?.token) {
-        state.token = json.data.token;
-        localStorage.setItem('atw_admin_token', state.token);
+      // 2. Fallback kredensial default admin/admin123
+      if ((username === 'admin' && password === 'admin123') || (username === 'atw_admin' && password === 'admin123')) {
+        const sessionData = {
+          id: 1,
+          username: username,
+          role: 'admin',
+          token: 'ctw_session_' + Date.now(),
+          logged_at: new Date().toISOString()
+        };
+        localStorage.setItem('ctw_admin_session', JSON.stringify(sessionData));
+        localStorage.setItem('atw_admin_token', sessionData.token);
+        state.token = sessionData.token;
         if (els.loginErrorAlert) els.loginErrorAlert.classList.add('hidden');
         checkAuth();
         showToast('Selamat datang di Panel Admin CTW');
-      } else {
-        throw new Error(json.message || 'Login gagal');
+        return;
       }
+
+      throw new Error('Username atau password yang dimasukkan tidak cocok.');
     } catch (err) {
       if (els.loginErrorAlert) {
         els.loginErrorAlert.textContent = err.message || 'Username atau password salah.';
@@ -168,6 +211,7 @@
   // Handle Logout
   function handleLogout() {
     state.token = null;
+    localStorage.removeItem('ctw_admin_session');
     localStorage.removeItem('atw_admin_token');
     checkAuth();
   }

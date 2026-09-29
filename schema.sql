@@ -16,10 +16,24 @@ DROP TABLE IF EXISTS `result_rules`;
 DROP TABLE IF EXISTS `options`;
 DROP TABLE IF EXISTS `questions`;
 DROP TABLE IF EXISTS `quizzes`;
+DROP TABLE IF EXISTS `admin_users`;
 DROP TABLE IF EXISTS `users`;
 
 -- ---------------------------------------------------
--- 1. Table: users
+-- 1. Table: admin_users (Otentikasi CMS Admin Supabase SDK)
+-- ---------------------------------------------------
+CREATE TABLE `admin_users` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username` VARCHAR(100) NOT NULL,
+  `password` VARCHAR(255) NOT NULL,
+  `role` VARCHAR(50) NOT NULL DEFAULT 'admin',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_admin_users_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------
+-- 2. Table: users
 -- Menyimpan data akun pengguna dan role (admin/user)
 -- ---------------------------------------------------
 CREATE TABLE `users` (
@@ -133,12 +147,17 @@ CREATE TABLE `user_responses` (
 -- SEED DATA / DUMMY DATA AWAL
 -- ===================================================
 
--- 1. Insert Users (Password admin123 & user123 di-hash menggunakan BCRYPT)
+-- 1. Insert Admin Users (Otentikasi CMS Supabase SDK)
+INSERT INTO `admin_users` (`id`, `username`, `password`, `role`) VALUES
+(1, 'admin', 'admin123', 'admin'),
+(2, 'atw_admin', 'admin123', 'admin');
+
+-- 2. Insert Users (Password admin123 & user123 di-hash menggunakan BCRYPT)
 INSERT INTO `users` (`id`, `name`, `email`, `password`, `role`) VALUES
 (1, 'Admin ATW', 'admin@atw.local', '$2y$10$wN9cW5r32P1B1x7yGjEbe.1xszK0XNfI7o7b0rYQj5H1y8O8OyeC6', 'admin'),
 (2, 'Alen Gregory', 'alen@atw.local', '$2y$10$wN9cW5r32P1B1x7yGjEbe.1xszK0XNfI7o7b0rYQj5H1y8O8OyeC6', 'user');
 
--- 2. Insert Quizzes
+-- 3. Insert Quizzes
 INSERT INTO `quizzes` (`id`, `title`, `slug`, `description`, `category`, `thumbnail`, `status`) VALUES
 (1, 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik', 'skrining-diagnosis-kerusakan-elektronik', 'Jawab 10 pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.', 'Laptop & PC', 'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=600&auto=format&fit=crop&q=80', 'active'),
 (2, 'Diagnostik Kesehatan Baterai & Layar Smartphone', 'diagnostik-kesehatan-baterai-layar-hp', 'Pemeriksaan performa charging, degradasi cell baterai lithium, sensitivitas touchscreen, dan visual display pada HP Android & iOS.', 'HP / Smartphone', 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80', 'active'),

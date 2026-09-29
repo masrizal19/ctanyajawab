@@ -14,6 +14,8 @@ import {
   FolderPlus
 } from 'lucide-react';
 import { Quiz } from '../types';
+import { supabase } from '../lib/supabaseClient';
+import { AdminLogin } from './AdminLogin';
 
 interface QuestionOptionDraft {
   option_text: string;
@@ -41,10 +43,18 @@ interface ResultRuleDraft {
 export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = ({
   onOpenPublicQuiz
 }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('atw_admin_token'));
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    const session = localStorage.getItem('ctw_admin_session');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        return parsed?.token || 'ctw_session_active';
+      } catch {
+        return 'ctw_session_active';
+      }
+    }
+    return localStorage.getItem('atw_admin_token') || null;
+  });
 
   // CMS Views: 'list' | 'builder'
   const [activeTab, setActiveTab] = useState<'list' | 'builder'>('list');
@@ -103,6 +113,18 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
   const loadAdminQuizzes = async () => {
     setIsLoading(true);
     try {
+      // 1. Ambil data kuis langsung dari Supabase terlebih dahulu (kompatibel static hosting)
+      const { data: sbQuizzes, error: sbError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (!sbError && sbQuizzes && sbQuizzes.length > 0) {
+        setQuizzes(sbQuizzes as Quiz[]);
+        return;
+      }
+
+      // 2. Fallback REST API
       let res = await fetch('/api/admin/quizzes');
       if (!res.ok) res = await fetch('/backend/api/admin/quizzes.php');
       const json = await res.json();
@@ -110,7 +132,7 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
         setQuizzes(json.data.quizzes || []);
       }
     } catch (err) {
-      console.error('Failed to load admin quizzes:', err);
+      console.warn('Load admin quizzes notice:', err);
     } finally {
       setIsLoading(false);
     }
@@ -122,38 +144,11 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
     }
   }, [token]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    try {
-      let res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      if (!res.ok) {
-        res = await fetch('/backend/api/admin/login.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-      }
-      const json = await res.json();
-      if (json.success && json.data?.token) {
-        setToken(json.data.token);
-        localStorage.setItem('atw_admin_token', json.data.token);
-        showToast('Login berhasil!');
-      } else {
-        setLoginError(json.message || 'Login gagal.');
-      }
-    } catch {
-      setLoginError('Koneksi ke server gagal.');
-    }
-  };
-
   const handleLogout = () => {
     setToken(null);
+    localStorage.removeItem('ctw_admin_session');
     localStorage.removeItem('atw_admin_token');
+    showToast('Berhasil keluar dari sesi Administrator.');
   };
 
   const handleNewQuiz = () => {
@@ -323,65 +318,12 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
   // If not logged in, show Login Screen
   if (!token) {
     return (
-      <div className="max-w-md mx-auto py-12">
-        <div className="p-8 rounded-3xl bg-[#f1f5f9] shadow-[8px_8px_18px_#d1d9e6,-8px_-8px_18px_#ffffff] border border-white/80">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center p-2.5 bg-[#f1f5f9] shadow-[4px_4px_8px_#d1d9e6,-4px_-4px_8px_#ffffff] border border-white/80 mb-4">
-              <img src="/shock.png" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/shock.svg'; }} alt="CTW Logo" className="w-full h-full object-contain" />
-            </div>
-            <h2 className="text-2xl font-extrabold text-slate-900">Login Administrator</h2>
-            <p className="text-xs text-slate-500 mt-1">Masukkan akun pengelola kuis CTW.</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-600 text-sm font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-blue-600 text-sm font-medium"
-              />
-            </div>
-
-            {loginError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-500/20 active:scale-98 transition-all"
-            >
-              Masuk ke Panel CMS
-            </button>
-          </form>
-
-          <div className="mt-6 pt-4 border-t border-slate-200 text-center">
-            <span className="text-[11px] text-slate-400 font-medium">
-              Default kredensial: <code className="text-slate-700 font-bold">admin</code> /{' '}
-              <code className="text-slate-700 font-bold">admin123</code>
-            </span>
-          </div>
-        </div>
-      </div>
+      <AdminLogin
+        onLoginSuccess={(session) => {
+          setToken(session.token);
+        }}
+        onShowToast={showToast}
+      />
     );
   }
 
