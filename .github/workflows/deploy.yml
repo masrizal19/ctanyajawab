@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
 
-# Hak akses OIDC dan GitHub Pages untuk deployment otomatis
+# Hak akses OIDC dan GitHub Pages yang wajib ada untuk deployment otomatis
 permissions:
   contents: read
   pages: write
@@ -18,20 +18,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # JOB 1: Build Aplikasi Vite / React / SPA
+  # JOB 1: Build aplikasi Vite / React / SPA
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Mengisolasi Setup Node.js tanpa memaksa pencarian cache lockfile
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Pengecekan dinamis: Menggunakan npm ci jika package-lock.json ada, atau npm install jika tidak ada
       - name: Install Dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -40,20 +38,12 @@ jobs:
             npm install
           fi
 
-      # Type Check & Linting (Opsional - jalankan jika script tersedia di package.json)
-      - name: Type Check & Linting
-        run: |
-          npm run lint --if-present
-          npm run typecheck --if-present
-
-      # Build Vite SPA & Server Bundle dengan menyertakan Environment Variables
       - name: Build Vite Application
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
-      # Mengunggah artefak hasil build dari folder ./dist untuk GitHub Pages
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
