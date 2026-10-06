@@ -491,3 +491,38 @@ export async function submitQuizAnswers({ quiz, answers, questions = [], resultR
     answers_payload: breakdown
   };
 }
+
+/**
+ * Menghapus kuis berdasarkan ID menggunakan Supabase Client
+ * @param {string|number} quizId - ID dari kuis yang akan dihapus
+ */
+export async function deleteQuiz(quizId) {
+  try {
+    const cleanId = String(quizId).trim();
+
+    if (!cleanId) {
+      throw new Error("ID Kuis tidak valid.");
+    }
+
+    const { data, error } = await supabase
+      .from('quizzes')
+      .delete()
+      .eq('id', cleanId);
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      success: true,
+      message: 'Kuis berhasil dihapus.'
+    };
+  } catch (err) {
+    console.error('Gagal menghapus kuis:', err.message);
+
+    return {
+      success: false,
+      message: err.message || 'Terjadi kesalahan saat menghapus kuis.'
+    };
+  }
+}
