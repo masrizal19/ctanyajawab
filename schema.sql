@@ -324,12 +324,31 @@ CREATE TABLE IF NOT EXISTS public.user_responses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Setup Row Level Security (RLS) & Policies
+-- 6. Tabel site_settings (Pengaturan Identitas Website, Hero Banner, & Kontak)
+CREATE TABLE IF NOT EXISTS public.site_settings (
+    id VARCHAR(100) PRIMARY KEY DEFAULT 'default',
+    site_title VARCHAR(255) DEFAULT 'CTW - Correct Answer Interactive Platform',
+    tagline VARCHAR(255) DEFAULT 'Platform Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+    meta_description TEXT DEFAULT 'Lakukan skrining interaktif kendala perangkat Laptop, PC, Smartphone, dan Printer secara cepat dan akurat dengan rekomendasi perbaikan profesional.',
+    logo_url VARCHAR(500) DEFAULT '/shock.png',
+    favicon_url VARCHAR(500) DEFAULT '/favicon.ico',
+    hero_badge VARCHAR(255) DEFAULT 'Modul Skrining Terpopuler #1 CTW',
+    hero_title VARCHAR(255) DEFAULT 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+    hero_subtitle TEXT DEFAULT 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
+    contact_email VARCHAR(255) DEFAULT 'support@ctwinteractive.id',
+    contact_phone VARCHAR(100) DEFAULT '+62 812-3456-7890',
+    contact_address TEXT DEFAULT 'Gedung Cyber Tower Lt. 5, Jl. Rasuna Said No. 12, Jakarta Selatan 12950',
+    footer_text VARCHAR(255) DEFAULT 'CTW • Correct Answer Interactive Diagnosis & Assessment Platform',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Setup Row Level Security (RLS) & Policies
 ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quiz_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quiz_result_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 
 -- Policy Akses Baca Publik
 DROP POLICY IF EXISTS "Public Read Quizzes" ON public.quizzes;
@@ -347,6 +366,9 @@ CREATE POLICY "Public Read Result Rules" ON public.quiz_result_rules FOR SELECT 
 DROP POLICY IF EXISTS "Public Insert Responses" ON public.user_responses;
 CREATE POLICY "Public Insert Responses" ON public.user_responses FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public Read Site Settings" ON public.site_settings;
+CREATE POLICY "Public Read Site Settings" ON public.site_settings FOR SELECT USING (true);
+
 -- Policy Admin / Anonymous Write (jika anonim diizinkan membuat kuis via CMS demo)
 DROP POLICY IF EXISTS "Allow All Quizzes Write" ON public.quizzes;
 CREATE POLICY "Allow All Quizzes Write" ON public.quizzes FOR ALL USING (true) WITH CHECK (true);
@@ -359,4 +381,8 @@ CREATE POLICY "Allow All Options Write" ON public.options FOR ALL USING (true) W
 
 DROP POLICY IF EXISTS "Allow All Rules Write" ON public.quiz_result_rules;
 CREATE POLICY "Allow All Rules Write" ON public.quiz_result_rules FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow All Site Settings Write" ON public.site_settings;
+CREATE POLICY "Allow All Site Settings Write" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
+
 

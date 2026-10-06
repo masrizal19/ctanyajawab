@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getQuizzes, getQuizById, saveQuiz, deleteQuiz } from '../services/quizService';
+import { SiteSettings } from './SiteSettings';
 import {
   Plus,
   Trash2,
@@ -17,7 +18,8 @@ import {
   CheckCircle2,
   ArrowRight,
   ListPlus,
-  Settings2
+  Settings2,
+  Globe
 } from 'lucide-react';
 
 /**
@@ -30,6 +32,9 @@ import {
  * 5. Tombol Hapus Kuis di daftar tabel terhubung langsung ke deleteQuiz(quizId) dengan konfirmasi dialog.
  */
 export const AdminPanel = ({ onOpenPublicQuiz }) => {
+  // Navigation Tab: 'quizzes' (Manajemen Kuis) | 'settings' (Pengaturan Website)
+  const [currentTab, setCurrentTab] = useState('quizzes');
+
   // State Utama
   const [quizzes, setQuizzes] = useState([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(true);
@@ -434,176 +439,214 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-black uppercase tracking-wider mb-2 border border-blue-100">
             <Settings2 className="w-3.5 h-3.5" />
-            <span>Admin Panel Management Kuis</span>
+            <span>Admin Panel Management CTW</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Manajemen Kuis CTW Interactive
+            Panel Administrator CTW Interactive
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Kelola daftar kuis, buat kuis baru melalui form modal interaktif dengan preset pertanyaan instan (3, 5, 7, atau 10 soal), serta hapus kuis secara permanen via Supabase SDK.
+            Kelola katalog kuis diagnosis, buat kuis baru melalui form modal preset (3, 5, 7, atau 10 soal), serta atur identitas website, banner hero, dan footer kontak.
           </p>
         </div>
 
-        {/* Tombol Utama Buka Modal Buat Kuis Baru */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Buat Kuis Baru</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ======================================================== */}
-      {/* DAFTAR TABEL KUIS                                        */}
-      {/* ======================================================== */}
-      <div className="space-y-4">
-        {/* Search & Actions Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-white shadow-soft-flat border border-slate-100">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari judul kuis atau kategori..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-slate-200"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        {/* Tab Navigasi Admin & Tombol Aksi */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="p-1 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center gap-1">
             <button
-              onClick={loadQuizzes}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              type="button"
+              onClick={() => setCurrentTab('quizzes')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                currentTab === 'quizzes'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingQuizzes ? 'animate-spin' : ''}`} />
-              <span>Segarkan Data</span>
+              <Layers className="w-4 h-4" />
+              <span>Katalog Kuis ({quizzes.length})</span>
             </button>
 
             <button
+              type="button"
+              onClick={() => setCurrentTab('settings')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                currentTab === 'settings'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Globe className="w-4 h-4" />
+              <span>Pengaturan Website</span>
+            </button>
+          </div>
+
+          {currentTab === 'quizzes' && (
+            <button
+              type="button"
               onClick={handleOpenCreateModal}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Kuis</span>
+              <Plus className="w-4 h-4" />
+              <span>Buat Kuis Baru</span>
             </button>
-          </div>
-        </div>
-
-        {/* Tabel Kuis */}
-        <div className="rounded-3xl bg-white shadow-soft-card border border-slate-100 overflow-hidden">
-          {isLoadingQuizzes ? (
-            <div className="py-20 text-center">
-              <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-xs font-bold text-slate-500">Memuat data kuis dari database Supabase...</p>
-            </div>
-          ) : filteredQuizzes.length === 0 ? (
-            <div className="py-16 text-center space-y-3 px-4">
-              <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
-                <HelpCircle className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-800">Tidak Ada Kuis Ditemukan</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Mulai buat kuis pertamamu menggunakan tombol Buat Kuis Baru di atas.
-              </p>
-              <button
-                onClick={handleOpenCreateModal}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all"
-              >
-                Buat Kuis Sekarang
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200/80 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
-                    <th className="py-4 px-6">ID &amp; Judul Kuis</th>
-                    <th className="py-4 px-4">Kategori</th>
-                    <th className="py-4 px-4">Status</th>
-                    <th className="py-4 px-4 text-center">Tautan Publik</th>
-                    <th className="py-4 px-6 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredQuizzes.map((q) => {
-                    const shareLink = `${window.location.origin}/quiz.html?id=${q.id}`;
-                    return (
-                      <tr key={q.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-4 px-6">
-                          <div className="font-extrabold text-slate-900 line-clamp-1">{q.title}</div>
-                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {q.id}</div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700">
-                            {q.category || 'Umum'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                              q.status === 'active'
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {q.status || 'Active'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          <button
-                            onClick={() => {
-                              setShareModalData({
-                                url: shareLink,
-                                id: q.id,
-                                title: q.title
-                              });
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Bagikan</span>
-                          </button>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {onOpenPublicQuiz && (
-                              <button
-                                onClick={() => onOpenPublicQuiz(q.id)}
-                                className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                title="Buka Kuis di Player"
-                              >
-                                <ArrowRight className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleOpenEditModal(q)}
-                              className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                              title="Edit Kuis"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmQuiz(q)}
-                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Hapus Kuis Secara Permanen"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
           )}
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* KONTEN TAB 1: DAFTAR TABEL KUIS                          */}
+      {/* ======================================================== */}
+      {currentTab === 'quizzes' && (
+        <div className="space-y-4">
+          {/* Search & Actions Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-white shadow-soft-flat border border-slate-100">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari judul kuis atau kategori..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-slate-200"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={loadQuizzes}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingQuizzes ? 'animate-spin' : ''}`} />
+                <span>Segarkan Data</span>
+              </button>
+
+              <button
+                onClick={handleOpenCreateModal}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Kuis</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tabel Kuis */}
+          <div className="rounded-3xl bg-white shadow-soft-card border border-slate-100 overflow-hidden">
+            {isLoadingQuizzes ? (
+              <div className="py-20 text-center">
+                <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs font-bold text-slate-500">Memuat data kuis dari database Supabase...</p>
+              </div>
+            ) : filteredQuizzes.length === 0 ? (
+              <div className="py-16 text-center space-y-3 px-4">
+                <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
+                  <HelpCircle className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">Tidak Ada Kuis Ditemukan</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Mulai buat kuis pertamamu menggunakan tombol Buat Kuis Baru di atas.
+                </p>
+                <button
+                  onClick={handleOpenCreateModal}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all"
+                >
+                  Buat Kuis Sekarang
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200/80 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
+                      <th className="py-4 px-6">ID &amp; Judul Kuis</th>
+                      <th className="py-4 px-4">Kategori</th>
+                      <th className="py-4 px-4">Status</th>
+                      <th className="py-4 px-4 text-center">Tautan Publik</th>
+                      <th className="py-4 px-6 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredQuizzes.map((q) => {
+                      const shareLink = `${window.location.origin}/quiz.html?id=${q.id}`;
+                      return (
+                        <tr key={q.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="font-extrabold text-slate-900 line-clamp-1">{q.title}</div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {q.id}</div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700">
+                              {q.category || 'Umum'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                q.status === 'active'
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {q.status || 'Active'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            <button
+                              onClick={() => {
+                                setShareModalData({
+                                  url: shareLink,
+                                  id: q.id,
+                                  title: q.title
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs transition-colors"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Bagikan</span>
+                            </button>
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {onOpenPublicQuiz && (
+                                <button
+                                  onClick={() => onOpenPublicQuiz(q.id)}
+                                  className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  title="Buka Kuis di Player"
+                                >
+                                  <ArrowRight className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEditModal(q)}
+                                className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                title="Edit Kuis"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmQuiz(q)}
+                                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Hapus Kuis Secara Permanen"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* KONTEN TAB 2: PENGATURAN WEBSITE                          */}
+      {/* ======================================================== */}
+      {currentTab === 'settings' && <SiteSettings />}
+
 
       {/* ======================================================== */}
       {/* MODAL FORM PEMBUATAN / EDIT KUIS INTERAKTIF              */}

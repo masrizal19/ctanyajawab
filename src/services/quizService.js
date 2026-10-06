@@ -756,3 +756,122 @@ export async function submitQuizAnswers({ quiz, answers, questions = [], resultR
     answers_payload: breakdown
   };
 }
+
+/**
+ * 6. Mengambil Pengaturan Website dari tabel site_settings (Supabase Client SDK)
+ */
+export const DEFAULT_SITE_SETTINGS = {
+  id: 'default',
+  // Identitas Umum
+  site_title: 'CTW - Correct Answer Interactive Platform',
+  tagline: 'Platform Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+  meta_description: 'Lakukan skrining interaktif kendala perangkat Laptop, PC, Smartphone, dan Printer secara cepat dan akurat dengan rekomendasi perbaikan profesional.',
+  logo_url: '/shock.png',
+  favicon_url: '/favicon.ico',
+
+  // Konten Hero Banner
+  hero_badge: 'Modul Skrining Terpopuler #1 CTW',
+  hero_title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+  hero_subtitle: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
+
+  // Kontak & Footer
+  contact_email: 'support@ctwinteractive.id',
+  contact_phone: '+62 812-3456-7890',
+  contact_address: 'Gedung Cyber Tower Lt. 5, Jl. Rasuna Said No. 12, Jakarta Selatan 12950',
+  footer_text: 'CTW • Correct Answer Interactive Diagnosis & Assessment Platform'
+};
+
+export async function getSiteSettings() {
+  let settings = { ...DEFAULT_SITE_SETTINGS };
+
+  // 1. Coba baca dari tabel site_settings di Supabase
+  if (isConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        settings = { ...settings, ...data };
+      }
+    } catch (err) {
+      console.warn('Notice getSiteSettings from Supabase:', err);
+    }
+  }
+
+  // 2. Fallback baca dari localStorage jika ada perubahan lokal
+  try {
+    const cached = localStorage.getItem('ctw_site_settings');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      settings = { ...settings, ...parsed };
+    }
+  } catch (e) {}
+
+  return settings;
+}
+
+export async function updateSiteSettings(formData) {
+  if (!formData || typeof formData !== 'object') {
+    throw new Error('Data pengaturan website wajib diisi.');
+  }
+
+  const payload = {
+    site_title: formData.site_title?.trim() || DEFAULT_SITE_SETTINGS.site_title,
+    tagline: formData.tagline?.trim() || DEFAULT_SITE_SETTINGS.tagline,
+    meta_description: formData.meta_description?.trim() || DEFAULT_SITE_SETTINGS.meta_description,
+    logo_url: formData.logo_url?.trim() || DEFAULT_SITE_SETTINGS.logo_url,
+    favicon_url: formData.favicon_url?.trim() || DEFAULT_SITE_SETTINGS.favicon_url,
+
+    hero_badge: formData.hero_badge?.trim() || DEFAULT_SITE_SETTINGS.hero_badge,
+    hero_title: formData.hero_title?.trim() || DEFAULT_SITE_SETTINGS.hero_title,
+    hero_subtitle: formData.hero_subtitle?.trim() || DEFAULT_SITE_SETTINGS.hero_subtitle,
+
+    contact_email: formData.contact_email?.trim() || DEFAULT_SITE_SETTINGS.contact_email,
+    contact_phone: formData.contact_phone?.trim() || DEFAULT_SITE_SETTINGS.contact_phone,
+    contact_address: formData.contact_address?.trim() || DEFAULT_SITE_SETTINGS.contact_address,
+    footer_text: formData.footer_text?.trim() || DEFAULT_SITE_SETTINGS.footer_text,
+    updated_at: new Date().toISOString()
+  };
+
+  // 1. Simpan ke database Supabase jika tabel site_settings tersedia
+  if (isConfigured) {
+    try {
+      const { data: existing } = await supabase
+        .from('site_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        const { error: updErr } = await supabase
+          .from('site_settings')
+          .update(payload)
+          .eq('id', existing.id);
+        if (updErr) console.warn('Supabase update site_settings warning:', updErr.message);
+      } else {
+        const { error: insErr } = await supabase
+          .from('site_settings')
+          .insert([{ ...payload, id: 'default' }]);
+        if (insErr) {
+          await supabase.from('site_settings').insert([payload]);
+        }
+      }
+    } catch (sbErr) {
+      console.warn('Notice saving site_settings to Supabase:', sbErr);
+    }
+  }
+
+  // 2. Simpan ke cache localStorage untuk persistensi instan
+  try {
+    localStorage.setItem('ctw_site_settings', JSON.stringify(payload));
+  } catch (e) {}
+
+  return {
+    success: true,
+    data: payload
+  };
+}
+
