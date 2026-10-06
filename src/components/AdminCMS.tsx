@@ -126,13 +126,23 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
         return;
       }
 
-      // 2. Fallback REST API
-      let res = await fetch('/api/admin/quizzes');
-      if (!res.ok) res = await fetch('/backend/api/admin/quizzes.php');
-      const json = await res.json();
-      if (json.success && json.data) {
-        setQuizzes(json.data.quizzes || []);
-      }
+      // Gunakan default quizzes lokal jika database Supabase belum terisi
+      setQuizzes([
+        {
+          id: 1,
+          title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+          slug: 'skrining-diagnosis-kerusakan-elektronik',
+          description: 'Pemeriksaan gejala kerusakan pada Laptop, Komputer, HP, atau Printer.',
+          category: 'Laptop & PC',
+          thumbnail: 'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=600&auto=format&fit=crop&q=80',
+          status: 'active',
+          rating: 4.95,
+          est_time: '3 Menit',
+          total_participants: 5120,
+          created_at: '2026-09-01T10:00:00Z',
+          total_questions: 3
+        }
+      ]);
     } catch (err) {
       console.warn('Load admin quizzes notice:', err);
     } finally {
@@ -260,21 +270,16 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
         return;
       }
 
-      // 2. Fallback REST API
-      let res = await fetch(`/api/admin/quiz/${quizId}`);
-      if (!res.ok) res = await fetch(`/backend/api/admin/quizzes.php?id=${quizId}`);
-      const json = await res.json();
-      if (json.success && json.data) {
-        const q = json.data.quiz;
-        setEditingQuizId(quizId);
-        setQuizTitle(q.title || '');
-        setQuizCategory(q.category || 'Umum');
-        setQuizSlug(q.slug || '');
-        setQuizStatus(q.status || 'active');
-        setQuizDescription(q.description || '');
-        setQuestions(json.data.questions || []);
-        setResultRules(json.data.result_rules || []);
+      // Jika data kuis default 1
+      if (quizId === 1) {
+        setEditingQuizId(1);
+        setQuizTitle('Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik');
+        setQuizCategory('Laptop & PC');
+        setQuizSlug('skrining-diagnosis-kerusakan-elektronik');
+        setQuizStatus('active');
+        setQuizDescription('Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer.');
         setActiveTab('builder');
+        return;
       }
     } catch {
       showToast('⚠️ Gagal mengambil data kuis untuk diedit.');

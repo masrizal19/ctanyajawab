@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
  * Validasi kredensial Supabase.
@@ -25,14 +25,16 @@ export const isConfigured = Boolean(
  * Mencegah aplikasi mengirimkan HTTP request otomatis ke placeholder-project.supabase.co
  * saat environment variables belum disetel atau masih bernilai placeholder.
  */
-function createSafeDummyClient(): any {
+function createSafeDummyClient() {
   const createChainable = () => {
-    const handler: ProxyHandler<any> = {
-      get(_target, prop) {
+    const handler = {
+      get(target, prop) {
         if (prop === 'then') {
-          return (resolve: (val: any) => void) => resolve({ data: [], error: null });
+          // Ketika chain di-await langsung (Promise resolution)
+          return (resolve) => resolve({ data: [], error: null });
         }
         if (typeof prop === 'string') {
+          // Mengembalikan fungsi chainable untuk method seperti .select(), .eq(), .order(), dsb.
           return () => new Proxy({}, handler);
         }
         return undefined;
@@ -59,7 +61,7 @@ function createSafeDummyClient(): any {
   };
 }
 
-let clientInstance: any;
+let clientInstance;
 
 if (isConfigured) {
   try {
@@ -81,10 +83,9 @@ if (isConfigured) {
 
 export const supabase = clientInstance;
 
-// Expose to window for global runtime interoperability if running in browser
+// Interoperabilitas di lingkungan window browser
 if (typeof window !== 'undefined') {
-  (window as any).supabase = supabase;
+  window.supabase = supabase;
 }
 
 export default supabase;
-
