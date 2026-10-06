@@ -59,6 +59,11 @@
     breakdownCounterBadge: document.getElementById('breakdown-counter-badge'),
     resultAnswersBreakdown: document.getElementById('result-answers-breakdown'),
 
+    viewError: document.getElementById('view-error'),
+    errorMessage: document.getElementById('error-message'),
+    btnErrorRetry: document.getElementById('btn-error-retry'),
+    btnErrorCatalog: document.getElementById('btn-error-catalog'),
+
     btnRetakeQuiz: document.getElementById('btn-retake-quiz'),
     btnBackToCatalog: document.getElementById('btn-back-to-catalog'),
     btnCopyResultLink: document.getElementById('btn-copy-result-link'),
@@ -71,11 +76,13 @@
     if (els.viewCatalog) els.viewCatalog.classList.add('hidden');
     if (els.viewQuizPlayer) els.viewQuizPlayer.classList.add('hidden');
     if (els.viewQuizResult) els.viewQuizResult.classList.add('hidden');
+    if (els.viewError) els.viewError.classList.add('hidden');
 
     if (viewName === 'loading' && els.viewLoading) els.viewLoading.classList.remove('hidden');
     if (viewName === 'catalog' && els.viewCatalog) els.viewCatalog.classList.remove('hidden');
     if (viewName === 'player' && els.viewQuizPlayer) els.viewQuizPlayer.classList.remove('hidden');
     if (viewName === 'result' && els.viewQuizResult) els.viewQuizResult.classList.remove('hidden');
+    if (viewName === 'error' && els.viewError) els.viewError.classList.remove('hidden');
   }
 
   // Fetch Public Quiz Catalog via Supabase SDK Client
@@ -183,9 +190,11 @@
       initPlayer();
       showView('player');
     } catch (err) {
-      console.error('Gagal memuat kuis:', err);
-      alert('Maaf, kuis tidak ditemukan atau gagal dimuat: ' + (err.message || 'Periksa koneksi database.'));
-      loadCatalog();
+      console.warn('Gagal memuat kuis:', err);
+      if (els.errorMessage) {
+        els.errorMessage.textContent = err.message || 'Maaf, kuis tidak ditemukan atau data kuis belum dipublikasikan di database Supabase.';
+      }
+      showView('error');
     }
   }
 
@@ -593,6 +602,22 @@
 
     if (els.btnBackToCatalog) {
       els.btnBackToCatalog.addEventListener('click', () => {
+        const newUrl = window.location.pathname;
+        window.history.pushState({}, '', newUrl);
+        loadCatalog();
+      });
+    }
+
+    if (els.btnErrorRetry) {
+      els.btnErrorRetry.addEventListener('click', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qId = urlParams.get('id') || '1';
+        loadQuiz(qId);
+      });
+    }
+
+    if (els.btnErrorCatalog) {
+      els.btnErrorCatalog.addEventListener('click', () => {
         const newUrl = window.location.pathname;
         window.history.pushState({}, '', newUrl);
         loadCatalog();

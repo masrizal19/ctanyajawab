@@ -54,10 +54,12 @@
     return null;
   }
 
-  // Initial attempt and auto-fetch from server API config if available
+  // Initial attempt and auto-fetch from server API config if available on local server
   function checkAndInitConfig() {
     initSupabaseClient();
-    if (!isSupabaseConfigured() && typeof fetch === 'function') {
+    const isLocalHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (!isSupabaseConfigured() && isLocalHost && typeof fetch === 'function') {
       fetch('/api/config')
         .then((res) => res.json())
         .then((json) => {
@@ -553,29 +555,187 @@
           };
         }
       } catch (err) {
-        console.error('[Supabase Error fetchQuizDetail]:', err);
+        console.warn('[Supabase Notice fetchQuizDetail]:', err?.message || err);
       }
     }
 
-    // Fallback REST API hanya jika bukan 404 (misal saat dijalankan di dev server lokal)
+    // 2. Cek apakah kuis tersimpan di localStorage browser (dari Admin CMS)
     try {
-      let res = await fetch(`/api/get-quiz?id=${cleanId}`);
-      if (!res.ok) res = await fetch(`/api/quiz-detail?id=${cleanId}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
+      const storedQuizzes = JSON.parse(
+        localStorage.getItem('ctw_quizzes') || localStorage.getItem('quizzes') || '[]'
+      );
+      if (Array.isArray(storedQuizzes)) {
+        const localMatch = storedQuizzes.find(
+          (q) => String(q.id) === cleanId || String(q.slug) === cleanId
+        );
+        if (localMatch) {
+          const fallbackQ = [
+            {
+              id: 1,
+              quiz_id: cleanId,
+              question_text: 'Bagaimana kondisi perangkat saat tombol power ditekan?',
+              sort_order: 1,
+              options: [
+                { id: 101, question_id: 1, option_text: 'Menyala normal dan langsung masuk ke sistem', score_value: 0, result_code: 'RINGAN' },
+                { id: 102, question_id: 1, option_text: 'Lampu indikator nyala tetapi layar gelap atau delay', score_value: 50, result_code: 'SEDANG' },
+                { id: 103, question_id: 1, option_text: 'Mati total tanpa respon mesin/kipas sama sekali', score_value: 100, result_code: 'BERAT' }
+              ]
+            },
+            {
+              id: 2,
+              quiz_id: cleanId,
+              question_text: 'Apakah perangkat sering mengalami panas berlebih (overheat) atau bising?',
+              sort_order: 2,
+              options: [
+                { id: 104, question_id: 2, option_text: 'Suhu stabil dan suara mesin sangat hening', score_value: 0, result_code: 'RINGAN' },
+                { id: 105, question_id: 2, option_text: 'Cukup hangat dan kipas bising hanya saat aplikasi berat', score_value: 50, result_code: 'SEDANG' },
+                { id: 106, question_id: 2, option_text: 'Sangat panas dan sering mati mendadak sendiri', score_value: 100, result_code: 'BERAT' }
+              ]
+            },
+            {
+              id: 3,
+              quiz_id: cleanId,
+              question_text: 'Bagaimana performa baterai dan pengisian daya saat ini?',
+              sort_order: 3,
+              options: [
+                { id: 107, question_id: 3, option_text: 'Daya tahan awet dan proses charging normal', score_value: 0, result_code: 'RINGAN' },
+                { id: 108, question_id: 3, option_text: 'Baterai cepat habis atau harus selalu colok charger', score_value: 50, result_code: 'SEDANG' },
+                { id: 109, question_id: 3, option_text: 'Baterai drop drastis atau tidak mengisi daya sama sekali', score_value: 100, result_code: 'BERAT' }
+              ]
+            }
+          ];
+
+          const fallbackR = [
+            {
+              id: 1,
+              quiz_id: cleanId,
+              min_score: 0,
+              max_score: 35,
+              result_code: 'RINGAN',
+              title: 'Kondisi Baik / Kendala Ringan',
+              badge: 'Kondisi Optimal',
+              description: 'Perangkat berada dalam kondisi prima dengan kendala minimal yang dapat diatasi dengan pembersihan file atau update driver.',
+              recommendation: 'Lakukan perawatan berkala dan hindari beban berlebihan.'
+            },
+            {
+              id: 2,
+              quiz_id: cleanId,
+              min_score: 36,
+              max_score: 70,
+              result_code: 'SEDANG',
+              title: 'Perlu Perawatan & Pengecekan Menengah',
+              badge: 'Perlu Perawatan',
+              description: 'Terdeteksi indikasi penurunan performa atau komponen aus yang membutuhkan pengecekan teknis.',
+              recommendation: 'Jadwalkan servis rutin dan periksa komponen pendingin/pasta.'
+            },
+            {
+              id: 3,
+              quiz_id: cleanId,
+              min_score: 71,
+              max_score: 100,
+              result_code: 'BERAT',
+              title: 'Indikasi Kerusakan Serius / Kritis',
+              badge: 'Kerusakan Kritis',
+              description: 'Terindikasi kerusakan signifikan pada komponen hardware inti yang memerlukan penanganan profesional.',
+              recommendation: 'Bawa segera perangkat ke teknisi CTW terpercaya.'
+            }
+          ];
+
           return {
-            quiz: json.data.quiz,
-            questions: json.data.questions || [],
-            result_rules: json.data.result_rules || []
+            quiz: localMatch,
+            questions: localMatch.questions && localMatch.questions.length > 0 ? localMatch.questions : fallbackQ,
+            result_rules: localMatch.result_rules && localMatch.result_rules.length > 0 ? localMatch.result_rules : fallbackR
           };
         }
       }
-    } catch (e) {
-      // Abaikan pada static hosting
+    } catch (localErr) {
+      console.warn('Local storage check warning:', localErr);
     }
 
-    throw new Error(`Kuis dengan ID "${cleanId}" tidak ditemukan.`);
+    // 3. Fallback modul skrining CTW interaktif default (mencegah error 404 / 405 pada static hosting seperti GitHub Pages)
+    const defaultDiagnosticQuiz = {
+      id: cleanId,
+      title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+      category: 'Laptop & PC',
+      slug: 'skrining-diagnosis-kerusakan-elektronik',
+      description: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
+      status: 'active',
+      is_published: true
+    };
+
+    return {
+      quiz: defaultDiagnosticQuiz,
+      questions: [
+        {
+          id: 1,
+          quiz_id: cleanId,
+          question_text: 'Bagaimana kondisi perangkat saat tombol daya (Power) ditekan?',
+          sort_order: 1,
+          options: [
+            { id: 101, question_id: 1, option_text: 'Menyala normal dan langsung masuk ke layar utama OS', score_value: 0, result_code: 'RINGAN' },
+            { id: 102, question_id: 1, option_text: 'Lampu indikator nyala tetapi layar gelap atau butuh beberapa kali tekan', score_value: 50, result_code: 'SEDANG' },
+            { id: 103, question_id: 1, option_text: 'Mati total tanpa respon suara kipas atau lampu indikator', score_value: 100, result_code: 'BERAT' }
+          ]
+        },
+        {
+          id: 2,
+          quiz_id: cleanId,
+          question_text: 'Apakah perangkat sering terasa panas berlebih (overheat) atau berbunyi bising?',
+          sort_order: 2,
+          options: [
+            { id: 104, question_id: 2, option_text: 'Suhu stabil dan suara mesin/kipas sangat hening', score_value: 0, result_code: 'RINGAN' },
+            { id: 105, question_id: 2, option_text: 'Agak hangat dan kipas berputar kencang hanya saat membuka program berat', score_value: 50, result_code: 'SEDANG' },
+            { id: 106, question_id: 2, option_text: 'Sangat panas dan perangkat sering mati mendadak sendiri', score_value: 100, result_code: 'BERAT' }
+          ]
+        },
+        {
+          id: 3,
+          quiz_id: cleanId,
+          question_text: 'Bagaimana kondisi baterai dan pengisian daya saat ini?',
+          sort_order: 3,
+          options: [
+            { id: 107, question_id: 3, option_text: 'Daya tahan awet dan proses charging berjalan normal', score_value: 0, result_code: 'RINGAN' },
+            { id: 108, question_id: 3, option_text: 'Baterai cepat habis atau harus selalu terhubung ke charger', score_value: 50, result_code: 'SEDANG' },
+            { id: 109, question_id: 3, option_text: 'Baterai kembung atau tidak mengisi daya sama sekali', score_value: 100, result_code: 'BERAT' }
+          ]
+        }
+      ],
+      result_rules: [
+        {
+          id: 1,
+          quiz_id: cleanId,
+          min_score: 0,
+          max_score: 35,
+          result_code: 'RINGAN',
+          title: 'Kondisi Baik / Kendala Sangat Ringan',
+          badge: 'Kondisi Optimal',
+          description: 'Perangkat berada dalam kondisi prima dengan kendala minimal yang dapat diatasi dengan pembersihan file atau update driver.',
+          recommendation: 'Lakukan perawatan berkala dan hindari penggunaan berlebihan.'
+        },
+        {
+          id: 2,
+          quiz_id: cleanId,
+          min_score: 36,
+          max_score: 70,
+          result_code: 'SEDANG',
+          title: 'Perlu Perawatan & Pengecekan Menengah',
+          badge: 'Perlu Perawatan',
+          description: 'Terdeteksi indikasi penurunan performa atau komponen aus yang membutuhkan pengecekan teknis.',
+          recommendation: 'Jadwalkan servis rutin dan periksa komponen pendukung.'
+        },
+        {
+          id: 3,
+          quiz_id: cleanId,
+          min_score: 71,
+          max_score: 100,
+          result_code: 'BERAT',
+          title: 'Indikasi Kerusakan Serius / Kritis',
+          badge: 'Kerusakan Kritis',
+          description: 'Terindikasi kerusakan signifikan pada komponen hardware inti yang memerlukan penanganan profesional.',
+          recommendation: 'Bawa segera perangkat ke pusat reparasi resmi terpercaya.'
+        }
+      ]
+    };
   }
 
   /**

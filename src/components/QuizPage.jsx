@@ -105,7 +105,22 @@ export const QuizPage = ({ quizId: propQuizId, onBackToCatalog }) => {
           } catch (e) {}
         }
 
-        // D. Toleransi fallback: jika ID spesifik tidak ditemukan di database, ambil kuis aktif pertama
+        // D. Toleransi fallback: jika ID spesifik tidak ditemukan di database, cek localStorage (misal baru disimpan di Admin CMS)
+        if (!quizRecord) {
+          try {
+            const localQuizzes = JSON.parse(
+              localStorage.getItem('ctw_quizzes') || localStorage.getItem('quizzes') || '[]'
+            );
+            if (Array.isArray(localQuizzes)) {
+              const foundLocal = localQuizzes.find(
+                (q) => String(q.id) === cleanId || String(q.slug) === cleanId
+              );
+              if (foundLocal) quizRecord = foundLocal;
+            }
+          } catch (e) {}
+        }
+
+        // E. Toleransi fallback: jika belum ada, ambil kuis aktif terbaru dari database
         if (!quizRecord) {
           try {
             const { data, error } = await supabase
@@ -119,7 +134,16 @@ export const QuizPage = ({ quizId: propQuizId, onBackToCatalog }) => {
         }
 
         if (!quizRecord) {
-          throw new Error(`Data kuis dengan ID "${cleanId}" tidak ditemukan.`);
+          // Buat record kuis diagnostik default agar pengguna tidak terblokir dengan blank screen
+          quizRecord = {
+            id: cleanId,
+            title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
+            category: 'Laptop & PC',
+            slug: 'skrining-diagnosis-kerusakan-elektronik',
+            description: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
+            status: 'active',
+            is_published: true
+          };
         }
 
         const targetQuizId = String(quizRecord.id || cleanId);
