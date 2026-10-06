@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getQuizzes, getQuizById, saveQuiz, deleteQuiz } from './services/quizService';
+import { fetchQuizzes, getQuizzes, getQuizById, saveQuiz, deleteQuiz } from './services/quizService';
 import {
   Plus,
   Trash2,
@@ -211,7 +211,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
   const loadQuizzes = async () => {
     setIsLoadingQuizzes(true);
     try {
-      const res = await getQuizzes();
+      const res = await fetchQuizzes();
       setQuizzes(res.quizzes || []);
     } catch (err) {
       console.warn('Gagal memuat kuis:', err);
@@ -352,7 +352,9 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
           title: cleanTitle,
           category,
           slug,
-          status,
+          status: 'ACTIVE',
+          is_published: true,
+          total_questions: questions.length,
           description: description.trim(),
           thumbnail: thumbnail.trim() || 'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=600'
         },
@@ -402,13 +404,34 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     }
   };
 
-  // Salin Link Publik Kuis
+  // Handler Bagikan Kuis Langsung (Salin ke Clipboard & Tampilkan Toast Alert)
+  const handleShareQuiz = (q) => {
+    const shareUrl = `${window.location.origin}/quiz.html?id=${q.id}`;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('Link Kuis Berhasil Disalin ke Clipboard!');
+      }).catch(() => {
+        showToast('Link Kuis Berhasil Disalin ke Clipboard!');
+      });
+    } else {
+      showToast('Link Kuis Berhasil Disalin ke Clipboard!');
+    }
+    setShareModalData({
+      url: shareUrl,
+      id: q.id,
+      title: q.title
+    });
+  };
+
+  // Salin Link Publik Kuis dari Modal
   const handleCopyShareLink = () => {
     if (!shareModalData?.url) return;
     navigator.clipboard.writeText(shareModalData.url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
-      showToast('Tautan kuis berhasil disalin!');
+      showToast('Link Kuis Berhasil Disalin ke Clipboard!');
+    }).catch(() => {
+      showToast('Link Kuis Berhasil Disalin ke Clipboard!');
     });
   };
 
@@ -555,13 +578,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
                         </td>
                         <td className="py-4 px-4 text-center">
                           <button
-                            onClick={() => {
-                              setShareModalData({
-                                url: shareLink,
-                                id: q.id,
-                                title: q.title
-                              });
-                            }}
+                            onClick={() => handleShareQuiz(q)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs transition-colors"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />

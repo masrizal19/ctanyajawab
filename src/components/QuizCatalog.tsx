@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Quiz } from '../types';
 import { Search, Clock, HelpCircle, Star, ArrowRight, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
+// @ts-ignore
 import { getSiteSettings, DEFAULT_SITE_SETTINGS } from '../services/quizService';
 
 interface QuizCatalogProps {
