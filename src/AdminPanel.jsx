@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getQuizzes, getQuizById, saveQuiz, deleteQuiz } from '../services/quizService';
+import { getQuizzes, getQuizById, saveQuiz, deleteQuiz } from './services/quizService';
 import {
   Plus,
   Trash2,
@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ArrowRight,
   ListPlus,
+  Sliders,
   Settings2
 } from 'lucide-react';
 
@@ -24,7 +25,7 @@ import {
  * Komponen Admin Panel Management Kuis React lengkap dengan Tailwind CSS:
  * 1. Tombol preset untuk membuat kuis dengan 3, 5, 7, atau 10 pertanyaan secara dinamis.
  * 2. Setiap pertanyaan memiliki 3 opsi jawaban dengan nilai skor (0 untuk Ringan, 50 untuk Sedang, 100 untuk Kritis).
- * 3. Terintegrasi dengan fungsi saveQuiz(quizData) dan deleteQuiz(quizId) dari ../services/quizService.js.
+ * 3. Terintegrasi dengan fungsi saveQuiz(quizData) dan deleteQuiz(quizId) dari ./services/quizService.
  * 4. Konfirmasi dialog sebelum menghapus kuis dan indikator loading state saat proses pengiriman data.
  * 5. Tata letak bersih, profesional, elegan, dan responsif.
  */

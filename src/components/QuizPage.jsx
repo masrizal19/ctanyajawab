@@ -120,30 +120,9 @@ export const QuizPage = ({ quizId: propQuizId, onBackToCatalog }) => {
           } catch (e) {}
         }
 
-        // E. Toleransi fallback: jika belum ada, ambil kuis aktif terbaru dari database
+        // Jika kuis tidak ditemukan, lempar error agar UI menampilkan Empty/Error State
         if (!quizRecord) {
-          try {
-            const { data, error } = await supabase
-              .from('quizzes')
-              .select('*')
-              .order('id', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (!error && data) quizRecord = data;
-          } catch (e) {}
-        }
-
-        if (!quizRecord) {
-          // Buat record kuis diagnostik default agar pengguna tidak terblokir dengan blank screen
-          quizRecord = {
-            id: cleanId,
-            title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
-            category: 'Laptop & PC',
-            slug: 'skrining-diagnosis-kerusakan-elektronik',
-            description: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
-            status: 'active',
-            is_published: true
-          };
+          throw new Error(`Data kuis dengan ID "${cleanId}" tidak ditemukan atau belum dipublikasikan di database.`);
         }
 
         const targetQuizId = String(quizRecord.id || cleanId);

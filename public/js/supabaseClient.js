@@ -652,90 +652,9 @@
       console.warn('Local storage check warning:', localErr);
     }
 
-    // 3. Fallback modul skrining CTW interaktif default (mencegah error 404 / 405 pada static hosting seperti GitHub Pages)
-    const defaultDiagnosticQuiz = {
-      id: cleanId,
-      title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
-      category: 'Laptop & PC',
-      slug: 'skrining-diagnosis-kerusakan-elektronik',
-      description: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.',
-      status: 'active',
-      is_published: true
-    };
-
-    return {
-      quiz: defaultDiagnosticQuiz,
-      questions: [
-        {
-          id: 1,
-          quiz_id: cleanId,
-          question_text: 'Bagaimana kondisi perangkat saat tombol daya (Power) ditekan?',
-          sort_order: 1,
-          options: [
-            { id: 101, question_id: 1, option_text: 'Menyala normal dan langsung masuk ke layar utama OS', score_value: 0, result_code: 'RINGAN' },
-            { id: 102, question_id: 1, option_text: 'Lampu indikator nyala tetapi layar gelap atau butuh beberapa kali tekan', score_value: 50, result_code: 'SEDANG' },
-            { id: 103, question_id: 1, option_text: 'Mati total tanpa respon suara kipas atau lampu indikator', score_value: 100, result_code: 'BERAT' }
-          ]
-        },
-        {
-          id: 2,
-          quiz_id: cleanId,
-          question_text: 'Apakah perangkat sering terasa panas berlebih (overheat) atau berbunyi bising?',
-          sort_order: 2,
-          options: [
-            { id: 104, question_id: 2, option_text: 'Suhu stabil dan suara mesin/kipas sangat hening', score_value: 0, result_code: 'RINGAN' },
-            { id: 105, question_id: 2, option_text: 'Agak hangat dan kipas berputar kencang hanya saat membuka program berat', score_value: 50, result_code: 'SEDANG' },
-            { id: 106, question_id: 2, option_text: 'Sangat panas dan perangkat sering mati mendadak sendiri', score_value: 100, result_code: 'BERAT' }
-          ]
-        },
-        {
-          id: 3,
-          quiz_id: cleanId,
-          question_text: 'Bagaimana kondisi baterai dan pengisian daya saat ini?',
-          sort_order: 3,
-          options: [
-            { id: 107, question_id: 3, option_text: 'Daya tahan awet dan proses charging berjalan normal', score_value: 0, result_code: 'RINGAN' },
-            { id: 108, question_id: 3, option_text: 'Baterai cepat habis atau harus selalu terhubung ke charger', score_value: 50, result_code: 'SEDANG' },
-            { id: 109, question_id: 3, option_text: 'Baterai kembung atau tidak mengisi daya sama sekali', score_value: 100, result_code: 'BERAT' }
-          ]
-        }
-      ],
-      result_rules: [
-        {
-          id: 1,
-          quiz_id: cleanId,
-          min_score: 0,
-          max_score: 35,
-          result_code: 'RINGAN',
-          title: 'Kondisi Baik / Kendala Sangat Ringan',
-          badge: 'Kondisi Optimal',
-          description: 'Perangkat berada dalam kondisi prima dengan kendala minimal yang dapat diatasi dengan pembersihan file atau update driver.',
-          recommendation: 'Lakukan perawatan berkala dan hindari penggunaan berlebihan.'
-        },
-        {
-          id: 2,
-          quiz_id: cleanId,
-          min_score: 36,
-          max_score: 70,
-          result_code: 'SEDANG',
-          title: 'Perlu Perawatan & Pengecekan Menengah',
-          badge: 'Perlu Perawatan',
-          description: 'Terdeteksi indikasi penurunan performa atau komponen aus yang membutuhkan pengecekan teknis.',
-          recommendation: 'Jadwalkan servis rutin dan periksa komponen pendukung.'
-        },
-        {
-          id: 3,
-          quiz_id: cleanId,
-          min_score: 71,
-          max_score: 100,
-          result_code: 'BERAT',
-          title: 'Indikasi Kerusakan Serius / Kritis',
-          badge: 'Kerusakan Kritis',
-          description: 'Terindikasi kerusakan signifikan pada komponen hardware inti yang memerlukan penanganan profesional.',
-          recommendation: 'Bawa segera perangkat ke pusat reparasi resmi terpercaya.'
-        }
-      ]
-    };
+    // 3. JANGAN kembalikan kuis default jika kuis tidak ditemukan di Supabase!
+    // Lempar error agar halaman merender Empty / Error State yang informatif
+    throw new Error(`Kuis dengan ID "${cleanId}" tidak ditemukan atau belum dipublikasikan di database.`);
   }
 
   /**
@@ -902,30 +821,40 @@
     }
 
     if (isSupabaseConfigured() && client) {
-      // Hapus record dari database (ON DELETE CASCADE akan menghapus questions & options otomatis)
-      const { error } = await client.from('quizzes').delete().eq('id', quizId);
-      if (error) throw error;
+      try {
+        await client.from('quiz_result_rules').delete().eq('quiz_id', String(quizId));
+        await client.from('result_rules').delete().eq('quiz_id', String(quizId));
+
+        const { data: qList } = await client.from('questions').select('id').eq('quiz_id', String(quizId));
+        if (qList && qList.length > 0) {
+          const qIds = qList.map((q) => q.id);
+          await client.from('options').delete().in('question_id', qIds);
+        }
+
+        await client.from('questions').delete().eq('quiz_id', String(quizId));
+        await client.from('quiz_questions').delete().eq('quiz_id', String(quizId));
+        const { error } = await client.from('quizzes').delete().eq('id', String(quizId));
+        if (error) throw error;
+      } catch (err) {
+        console.warn('Supabase delete error:', err);
+        throw err;
+      }
       return { success: true };
     }
 
-    // Fallback REST API
-    let res = await fetch('/api/admin/delete-quiz', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quiz_id: quizId, id: quizId })
-    });
-    if (!res.ok) {
-      res = await fetch(`/api/admin/quiz/${quizId}`, { method: 'DELETE' });
-    }
-    const json = await res.json();
-    if (!json.success && json.status !== 'success') {
-      throw new Error(json.message || 'Gagal menghapus kuis.');
-    }
+    // Hapus dari localStorage jika tersimpan
+    try {
+      const stored = JSON.parse(localStorage.getItem('quizzes') || localStorage.getItem('ctw_quizzes') || '[]');
+      const filtered = stored.filter((q) => String(q.id) !== String(quizId));
+      localStorage.setItem('quizzes', JSON.stringify(filtered));
+      localStorage.setItem('ctw_quizzes', JSON.stringify(filtered));
+    } catch (e) {}
+
     return { success: true };
   }
 
   /**
-   * C. DELETE - Hapus Pertanyaan spesifik dari builder kuis
+   * C. DELETE - Hapus Pertanyaan spesifik dari builder kuis (100% Supabase SDK)
    */
   async function deleteQuestion(questionId, imageUrl) {
     if (!questionId) return { success: true };
@@ -940,18 +869,14 @@
     }
 
     if (isSupabaseConfigured() && client) {
-      const { error } = await client.from('questions').delete().eq('id', questionId);
-      if (error) throw error;
-      return { success: true };
+      try {
+        await client.from('options').delete().eq('question_id', questionId);
+        await client.from('questions').delete().eq('id', questionId);
+        await client.from('quiz_questions').delete().eq('id', questionId);
+      } catch (e) {}
     }
 
-    // Fallback REST API
-    const res = await fetch('/api/admin/delete-question', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id: questionId, id: questionId })
-    });
-    return res.json();
+    return { success: true };
   }
 
   /**

@@ -1,11 +1,6 @@
 import { supabase, isConfigured } from '../lib/supabaseClient';
-import { Quiz, Question, ResultRule, SubmissionResponse } from '../types';
+import { Quiz, Question, SubmissionResponse, ResultRule } from '../types';
 
-/**
- * Data Kuis Cadangan (Default / Seed Data)
- * Digunakan jika Supabase belum terisi atau saat offline/unconfigured.
- * Memastikan aplikasi tetap interaktif dan tidak mengalami crash.
- */
 export const DEFAULT_QUIZZES: Quiz[] = [
   {
     id: 1,
@@ -51,91 +46,6 @@ export const DEFAULT_QUIZZES: Quiz[] = [
   }
 ];
 
-export const DEFAULT_QUESTIONS: Question[] = [
-  {
-    id: 1,
-    quiz_id: 1,
-    question_text: 'Bagaimana kondisi perangkat saat tombol daya (Power) ditekan?',
-    image_url: null,
-    sort_order: 1,
-    options: [
-      { id: 101, question_id: 1, option_text: 'Menyala normal dan langsung masuk ke layar utama OS', score_value: 0, result_code: 'RINGAN' },
-      { id: 102, question_id: 1, option_text: 'Lampu indikator menyala tetapi layar gelap / harus ditekan berulang', score_value: 50, result_code: 'SEDANG' },
-      { id: 103, question_id: 1, option_text: 'Mati total tanpa ada respon suara kipas atau lampu sama sekali', score_value: 100, result_code: 'KRITIS' }
-    ]
-  },
-  {
-    id: 2,
-    quiz_id: 1,
-    question_text: 'Apakah perangkat sering terasa panas berlebih (overheat) atau berbunyi bising?',
-    image_url: null,
-    sort_order: 2,
-    options: [
-      { id: 104, question_id: 2, option_text: 'Suhu stabil dan suara mesin/kipas sangat hening', score_value: 0, result_code: 'RINGAN' },
-      { id: 105, question_id: 2, option_text: 'Cukup hangat dan kipas berputar kencang hanya saat membuka program berat', score_value: 50, result_code: 'SEDANG' },
-      { id: 106, question_id: 2, option_text: 'Sangat panas dan perangkat sering mati mendadak sendiri', score_value: 100, result_code: 'KRITIS' }
-    ]
-  },
-  {
-    id: 3,
-    quiz_id: 1,
-    question_text: 'Bagaimana kondisi baterai dan pengisian daya saat ini?',
-    image_url: null,
-    sort_order: 3,
-    options: [
-      { id: 107, question_id: 3, option_text: 'Daya tahan awet dan proses charging berjalan normal', score_value: 0, result_code: 'RINGAN' },
-      { id: 108, question_id: 3, option_text: 'Baterai cepat habis atau harus selalu terhubung ke charger', score_value: 50, result_code: 'SEDANG' },
-      { id: 109, question_id: 3, option_text: 'Baterai kembung atau tidak mengisi daya sama sekali', score_value: 100, result_code: 'KRITIS' }
-    ]
-  }
-];
-
-export const DEFAULT_RESULT_RULES: ResultRule[] = [
-  {
-    id: 1,
-    quiz_id: 1,
-    min_score: 0,
-    max_score: 35,
-    result_code: 'RINGAN',
-    title: 'Kondisi Baik / Kendala Sangat Ringan',
-    badge: 'Kondisi Optimal',
-    badge_color: '#10b981',
-    image_url: null,
-    description: 'Perangkat berada dalam kondisi prima dengan kendala minor yang dapat diatasi dengan pembersihan file sampah atau update driver.',
-    recommendation: 'Lakukan perawatan berkala dan hindari penggunaan berlebihan.'
-  },
-  {
-    id: 2,
-    quiz_id: 1,
-    min_score: 36,
-    max_score: 70,
-    result_code: 'SEDANG',
-    title: 'Perlu Perawatan & Pengecekan Menengah',
-    badge: 'Perlu Perawatan',
-    badge_color: '#f59e0b',
-    image_url: null,
-    description: 'Terdeteksi indikasi penurunan performa atau komponen aus yang membutuhkan pengecekan teknis.',
-    recommendation: 'Jadwalkan servis rutin, pembersihan debu internal, dan ganti thermal paste.'
-  },
-  {
-    id: 3,
-    quiz_id: 1,
-    min_score: 71,
-    max_score: 100,
-    result_code: 'KRITIS',
-    title: 'Indikasi Kerusakan Serius / Kritis',
-    badge: 'Kerusakan Kritis',
-    badge_color: '#ef4444',
-    image_url: null,
-    description: 'Terindikasi kerusakan signifikan pada komponen hardware inti yang memerlukan penanganan teknisi profesional.',
-    recommendation: 'Segera bawa perangkat ke pusat reparasi resmi terpercaya untuk menghindari kerusakan permanen.'
-  }
-];
-
-/**
- * 1. Mengambil Daftar Kuis (Pure Supabase Client Query)
- * Tanpa fallback request ke /api/quizzes atau quizzes.php untuk mencegah error 404 & JSON SyntaxError.
- */
 export async function getQuizzes({ category = 'Semua', search = '' }: { category?: string; search?: string } = {}): Promise<{
   quizzes: Quiz[];
   categories: { category: string; count: number }[];
@@ -152,9 +62,21 @@ export async function getQuizzes({ category = 'Semua', search = '' }: { category
         rawQuizzes = data as Quiz[];
       }
     } catch (err) {
-      console.warn('⚠️ [quizService] Query Supabase quizzes gagal, beralih ke data lokal:', err);
+      console.warn('⚠️ [quizService] Query Supabase quizzes gagal:', err);
     }
   }
+
+  try {
+    const stored = JSON.parse(localStorage.getItem('quizzes') || localStorage.getItem('ctw_quizzes') || '[]');
+    if (Array.isArray(stored) && stored.length > 0) {
+      const existingIds = new Set(rawQuizzes.map(q => String(q.id)));
+      stored.forEach((sq: any) => {
+        if (!existingIds.has(String(sq.id))) {
+          rawQuizzes.unshift(sq as Quiz);
+        }
+      });
+    }
+  } catch (e) {}
 
   if (rawQuizzes.length === 0) {
     rawQuizzes = [...DEFAULT_QUIZZES];
@@ -192,9 +114,6 @@ export async function getQuizzes({ category = 'Semua', search = '' }: { category
   };
 }
 
-/**
- * 2. Mengambil Detail Kuis Lengkap Berdasarkan ID (Pure Supabase Client Query)
- */
 export async function getQuizById(quizId: string | number): Promise<{
   quiz: Quiz;
   questions: Question[];
@@ -243,7 +162,6 @@ export async function getQuizById(quizId: string | number): Promise<{
         const targetId = String(quizRecord.id || cleanId);
 
         const [questionsRes, rulesRes] = await Promise.all([
-          // Pertanyaan & Opsi
           (async () => {
             let qList: any[] = [];
             try {
@@ -291,12 +209,11 @@ export async function getQuizById(quizId: string | number): Promise<{
                 image_url: q.image_url || null,
                 sort_order: q.sort_order || idx + 1,
                 options: optionsList.filter((o) => String(o.question_id) === String(q.id))
-              })) as Question[];
+              }));
             }
             return [];
           })(),
 
-          // Aturan Hasil
           (async () => {
             let rList: any[] = [];
             try {
@@ -328,7 +245,7 @@ export async function getQuizById(quizId: string | number): Promise<{
                 description: r.description || '',
                 image_url: r.image_url || null,
                 recommendation: r.recommendation || ''
-              })) as ResultRule[];
+              }));
             }
             return [];
           })()
@@ -342,19 +259,22 @@ export async function getQuizById(quizId: string | number): Promise<{
     }
   }
 
+  // Cek localStorage jika baru saja disimpan oleh Admin
   if (!quizRecord) {
-    quizRecord =
-      DEFAULT_QUIZZES.find(
-        (q) => String(q.id) === cleanId || String(q.slug) === cleanId
-      ) || DEFAULT_QUIZZES[0];
+    try {
+      const stored = JSON.parse(localStorage.getItem('quizzes') || localStorage.getItem('ctw_quizzes') || '[]');
+      const found = stored.find((q: any) => String(q.id) === cleanId || String(q.slug) === cleanId);
+      if (found) {
+        quizRecord = found as Quiz;
+        if (found.questions) questions = found.questions;
+        if (found.result_rules) resultRules = found.result_rules;
+      }
+    } catch (e) {}
   }
 
-  if (questions.length === 0) {
-    questions = [...DEFAULT_QUESTIONS];
-  }
-
-  if (resultRules.length === 0) {
-    resultRules = [...DEFAULT_RESULT_RULES];
+  // JANGAN fallback ke mock kuis default jika tidak ditemukan!
+  if (!quizRecord) {
+    throw new Error(`Data kuis dengan ID "${cleanId}" tidak ditemukan atau belum dipublikasikan.`);
   }
 
   return {
@@ -364,16 +284,222 @@ export async function getQuizById(quizId: string | number): Promise<{
   };
 }
 
-/**
- * 3. Evaluasi & Kalkulasi Skor Kuis (Pure Client-Side + Logging Supabase)
- */
+export async function saveQuiz({
+  quiz,
+  questions = [],
+  resultRules = []
+}: {
+  quiz: any;
+  questions?: any[];
+  resultRules?: any[];
+}): Promise<{ success: boolean; quiz_id: string; slug: string; share_url: string }> {
+  if (!quiz || !quiz.title || !quiz.title.trim()) {
+    throw new Error('Judul kuis wajib diisi.');
+  }
+
+  const cleanTitle = quiz.title.trim();
+  const cleanCategory = quiz.category?.trim() || 'Teknologi & Desain';
+  const autoSlug =
+    quiz.slug?.trim() ||
+    cleanTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') +
+      '-' +
+      Math.floor(1000 + Math.random() * 9000);
+
+  const quizPayload = {
+    title: cleanTitle,
+    category: cleanCategory,
+    slug: autoSlug,
+    status: quiz.status || 'active',
+    is_published: quiz.status !== 'draft',
+    description: quiz.description?.trim() || '',
+    thumbnail: quiz.thumbnail || 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=600',
+    rating: 5.0,
+    est_time: `${Math.max(1, Math.ceil(questions.length * 0.7))} Menit`,
+    total_participants: 0,
+    created_at: new Date().toISOString()
+  };
+
+  let savedQuizId = quiz.id ? String(quiz.id) : null;
+
+  if (isConfigured) {
+    if (savedQuizId) {
+      await (supabase.from('quizzes') as any)
+        .update({
+          title: quizPayload.title,
+          category: quizPayload.category,
+          slug: quizPayload.slug,
+          status: quizPayload.status,
+          is_published: quizPayload.is_published,
+          description: quizPayload.description,
+          thumbnail: quizPayload.thumbnail
+        })
+        .eq('id', savedQuizId);
+    } else {
+      const { data: newQ } = await (supabase.from('quizzes') as any)
+        .insert([quizPayload])
+        .select()
+        .maybeSingle();
+
+      if (newQ && newQ.id) {
+        savedQuizId = String(newQ.id);
+      } else {
+        savedQuizId = String(Date.now());
+      }
+    }
+
+    if (savedQuizId && resultRules && resultRules.length > 0) {
+      try {
+        await (supabase.from('quiz_result_rules') as any).delete().eq('quiz_id', savedQuizId);
+        await (supabase.from('result_rules') as any).delete().eq('quiz_id', savedQuizId);
+      } catch (e) {}
+
+      const rulesData = resultRules.map((r, idx) => ({
+        quiz_id: savedQuizId,
+        min_score: typeof r.min_score === 'number' ? r.min_score : parseInt(r.min_score || 0, 10),
+        max_score: typeof r.max_score === 'number' ? r.max_score : parseInt(r.max_score || 100, 10),
+        result_code: r.result_code || `RULE_${idx + 1}`,
+        title: r.title || 'Hasil Evaluasi',
+        badge: r.badge || 'Hasil Kuis',
+        badge_color: r.badge_color || '#2563eb',
+        description: r.description || '',
+        recommendation: r.recommendation || ''
+      }));
+
+      try {
+        const { error: rErr } = await (supabase.from('quiz_result_rules') as any).insert(rulesData);
+        if (rErr) {
+          await (supabase.from('result_rules') as any).insert(rulesData);
+        }
+      } catch (e) {}
+    }
+
+    if (savedQuizId && questions && questions.length > 0) {
+      try {
+        const { data: oldQs } = await (supabase.from('questions') as any).select('id').eq('quiz_id', savedQuizId);
+        if (oldQs && oldQs.length > 0) {
+          const oldIds = oldQs.map((q: any) => q.id);
+          await (supabase.from('options') as any).delete().in('question_id', oldIds);
+        }
+        await (supabase.from('questions') as any).delete().eq('quiz_id', savedQuizId);
+        await (supabase.from('quiz_questions') as any).delete().eq('quiz_id', savedQuizId);
+      } catch (e) {}
+
+      for (let i = 0; i < questions.length; i++) {
+        const qItem = questions[i];
+        let qId = null;
+
+        try {
+          const { data: insQuestion } = await (supabase.from('quiz_questions') as any)
+            .insert([{
+              quiz_id: savedQuizId,
+              question_text: qItem.question_text,
+              image_url: qItem.image_url || null,
+              sort_order: i + 1
+            }])
+            .select()
+            .maybeSingle();
+
+          if (insQuestion?.id) qId = insQuestion.id;
+        } catch (e) {}
+
+        if (!qId) {
+          try {
+            const { data: insQuestion2 } = await (supabase.from('questions') as any)
+              .insert([{
+                quiz_id: savedQuizId,
+                question_text: qItem.question_text,
+                image_url: qItem.image_url || null,
+                sort_order: i + 1
+              }])
+              .select()
+              .maybeSingle();
+            if (insQuestion2?.id) qId = insQuestion2.id;
+          } catch (e) {}
+        }
+
+        if (qId && Array.isArray(qItem.options) && qItem.options.length > 0) {
+          const optPayload = qItem.options.map((opt: any) => ({
+            question_id: qId,
+            option_text: opt.option_text,
+            score_value: typeof opt.score_value === 'number' ? opt.score_value : parseInt(opt.score_value || 0, 10),
+            result_code: opt.result_code || 'DEFAULT'
+          }));
+          try {
+            await (supabase.from('options') as any).insert(optPayload);
+          } catch (e) {}
+        }
+      }
+    }
+  } else {
+    if (!savedQuizId) savedQuizId = String(Date.now());
+  }
+
+  try {
+    const stored = JSON.parse(localStorage.getItem('quizzes') || localStorage.getItem('ctw_quizzes') || '[]');
+    const newRecord = {
+      ...quizPayload,
+      id: savedQuizId,
+      questions,
+      result_rules: resultRules
+    };
+    const updated = [newRecord, ...stored.filter((q: any) => String(q.id) !== savedQuizId)];
+    localStorage.setItem('quizzes', JSON.stringify(updated));
+    localStorage.setItem('ctw_quizzes', JSON.stringify(updated));
+  } catch (e) {}
+
+  return {
+    success: true,
+    quiz_id: savedQuizId,
+    slug: autoSlug,
+    share_url: `/quiz.html?id=${savedQuizId}`
+  };
+}
+
+export async function deleteQuiz(quizId: string | number): Promise<{ success: boolean; quiz_id: string }> {
+  const cleanId = String(quizId || '').trim();
+  if (!cleanId) {
+    throw new Error('ID Kuis wajib disertakan.');
+  }
+
+  if (isConfigured) {
+    try {
+      await (supabase.from('quiz_result_rules') as any).delete().eq('quiz_id', cleanId);
+      await (supabase.from('result_rules') as any).delete().eq('quiz_id', cleanId);
+
+      const { data: qList } = await (supabase.from('questions') as any).select('id').eq('quiz_id', cleanId);
+      if (qList && qList.length > 0) {
+        const qIds = qList.map((q: any) => q.id);
+        await (supabase.from('options') as any).delete().in('question_id', qIds);
+      }
+
+      await (supabase.from('questions') as any).delete().eq('quiz_id', cleanId);
+      await (supabase.from('quiz_questions') as any).delete().eq('quiz_id', cleanId);
+      await (supabase.from('quizzes') as any).delete().eq('id', cleanId);
+    } catch (sbErr) {
+      console.warn('Supabase delete error:', sbErr);
+    }
+  }
+
+  try {
+    const stored = JSON.parse(localStorage.getItem('quizzes') || localStorage.getItem('ctw_quizzes') || '[]');
+    const filtered = stored.filter((q: any) => String(q.id) !== cleanId);
+    localStorage.setItem('quizzes', JSON.stringify(filtered));
+    localStorage.setItem('ctw_quizzes', JSON.stringify(filtered));
+  } catch (e) {}
+
+  return { success: true, quiz_id: cleanId };
+}
+
 export async function submitQuizAnswers({
   quiz,
   answers,
   questions = [],
   resultRules = []
 }: {
-  quiz: Quiz;
+  quiz: any;
   answers: { question_id: number; option_id: number }[];
   questions?: Question[];
   resultRules?: ResultRule[];
@@ -472,7 +598,7 @@ export async function submitQuizAnswers({
     bayes: {
       severity_percentage: percentage,
       confidence_percentage: 85,
-      dominant_hypothesis: percentage >= 71 ? 'KRITIS' : percentage >= 36 ? 'SEDANG' : 'RINGAN',
+      dominant_hypothesis: (percentage >= 71 ? 'KRITIS' : percentage >= 36 ? 'SEDANG' : 'RINGAN') as 'RINGAN' | 'SEDANG' | 'KRITIS',
       posterior_probabilities: {
         ringan: percentage <= 35 ? 85 : 10,
         sedang: percentage >= 36 && percentage <= 70 ? 80 : 15,

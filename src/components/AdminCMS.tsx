@@ -303,23 +303,10 @@ export const AdminCMS: React.FC<{ onOpenPublicQuiz?: (id: number) => void }> = (
           await (supabase.from('options') as any).delete().in('question_id', qIds);
         }
         await (supabase.from('questions') as any).delete().eq('quiz_id', quizId);
+        await (supabase.from('quiz_questions') as any).delete().eq('quiz_id', quizId);
         await (supabase.from('quizzes') as any).delete().eq('id', quizId);
       } catch (sbErr) {
         console.warn('Supabase delete notice:', sbErr);
-      }
-
-      // 2. Fallback REST API jika tersedia
-      try {
-        let res = await fetch(`/api/admin/quiz/${quizId}`, { method: 'DELETE' });
-        if (!res.ok) {
-          await fetch('/backend/api/admin/delete-quiz.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: quizId })
-          });
-        }
-      } catch {
-        // Abaikan jika offline / static hosting
       }
 
       setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
