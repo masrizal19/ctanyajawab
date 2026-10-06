@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Quiz } from '../types';
 import { Search, Clock, HelpCircle, Star, ArrowRight, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getSiteSettings, DEFAULT_SITE_SETTINGS } from '../services/quizService';
 
 interface QuizCatalogProps {
   quizzes: Quiz[];
@@ -25,6 +26,13 @@ export const QuizCatalog: React.FC<QuizCatalogProps> = ({
   isLoading,
 }) => {
   const featuredQuiz = quizzes[0];
+  const [siteSettings, setSiteSettings] = useState(DEFAULT_SITE_SETTINGS);
+
+  useEffect(() => {
+    getSiteSettings().then((res) => {
+      if (res) setSiteSettings(res);
+    });
+  }, []);
 
   return (
     <div className="space-y-10 pb-16">
@@ -40,15 +48,15 @@ export const QuizCatalog: React.FC<QuizCatalogProps> = ({
           <div className="lg:col-span-7 space-y-5">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-bold tracking-wide text-blue-100 border border-white/20">
               <Zap className="w-3.5 h-3.5 text-amber-300" />
-              <span>Modul Skrining Terpopuler #1 CTW</span>
+              <span>{siteSettings.hero_badge || 'Modul Skrining Terpopuler #1 CTW'}</span>
             </div>
 
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-[1.15]">
-              Skrining &amp; Diagnosis Cepat Kerusakan Perangkat Elektronik
+              {siteSettings.hero_title || 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik'}
             </h1>
 
             <p className="text-blue-100/90 text-sm md:text-base leading-relaxed max-w-xl">
-              Jawab 10 pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.
+              {siteSettings.hero_subtitle || 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan saran perbaikan yang tepat.'}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-blue-200">

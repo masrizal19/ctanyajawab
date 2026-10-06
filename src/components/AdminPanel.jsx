@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getQuizzes, getQuizById, saveQuiz, deleteQuiz } from '../services/quizService';
+import { SiteSettings } from './SiteSettings';
 import {
   Plus,
   Trash2,
@@ -17,26 +18,33 @@ import {
   CheckCircle2,
   ArrowRight,
   ListPlus,
-  Settings2
+  Settings2,
+  Globe
 } from 'lucide-react';
 
 /**
- * Komponen Admin Panel Management Kuis React lengkap dengan Tailwind CSS:
- * 1. Tombol preset untuk membuat kuis dengan 3, 5, 7, atau 10 pertanyaan secara dinamis.
- * 2. Setiap pertanyaan memiliki 3 opsi jawaban dengan nilai skor (0 untuk Ringan, 50 untuk Sedang, 100 untuk Kritis).
- * 3. Terintegrasi dengan fungsi saveQuiz(quizData) dan deleteQuiz(quizId) dari ../services/quizService.js.
- * 4. Konfirmasi dialog sebelum menghapus kuis dan indikator loading state saat proses pengiriman data.
- * 5. Tata letak bersih, profesional, elegan, dan responsif.
+ * Komponen Modal & Panel Pembuatan Kuis Baru Interaktif (CTW Interactive)
+ * Menggunakan React dan Tailwind CSS:
+ * 1. Form mendukung pengisian judul kuis, kategori (Laptop & PC, HP / Smartphone, Printer, dll.), deskripsi, dan preset jumlah soal (3, 5, 7, atau 10 soal).
+ * 2. Bidang input dinamis untuk setiap pertanyaan beserta 3 pilihan opsi jawaban dan bobot nilainya (Skor: 0 = Ringan, 50 = Sedang, 100 = Kritis).
+ * 3. Menyimpan kuis langsung ke Supabase melalui saveQuiz(quizData).
+ * 4. State loading saat penyimpanan berlangsung + notifikasi toast dan popup sukses.
+ * 5. Tombol Hapus Kuis di daftar tabel terhubung langsung ke deleteQuiz(quizId) dengan konfirmasi dialog.
  */
 export const AdminPanel = ({ onOpenPublicQuiz }) => {
-  // Tab aktif: 'list' (Katalog Kuis) | 'builder' (Pembuat Kuis)
-  const [activeTab, setActiveTab] = useState('list');
+  // Navigation Tab: 'quizzes' (Manajemen Kuis) | 'settings' (Pengaturan Website)
+  const [currentTab, setCurrentTab] = useState('quizzes');
+
+  // State Utama
   const [quizzes, setQuizzes] = useState([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Form State Kuis
+  // Modal Form Pembuatan / Edit Kuis
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState(null);
+
+  // Field Form Kuis
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Laptop & PC');
   const [slug, setSlug] = useState('');
@@ -44,11 +52,12 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
   const [description, setDescription] = useState('');
   const [thumbnail, setThumbnail] = useState('');
 
-  // Preset Pembuatan Soal Standar (3 Opsi: 0 = Ringan, 50 = Sedang, 100 = Kritis)
-  const generateQuestionsPreset = (count, baseCategory = category) => {
+  // Generator Pertanyaan Berdasarkan Preset (3, 5, 7, atau 10 Soal)
+  // Setiap soal memiliki 3 opsi dengan skor: 0 (Ringan), 50 (Sedang), 100 (Kritis)
+  const generateQuestionsPreset = (count, targetCategory = category) => {
     const templates = [
       {
-        q: 'Bagaimana status indikator daya (Power) atau pengisian baterai saat dinyalakan?',
+        q: 'Bagaimana kondisi indikator daya (Power) atau pengisian baterai saat perangkat dinyalakan?',
         opts: [
           { text: 'Menyala normal tanpa kendala (Normal)', score: 0, code: 'RINGAN' },
           { text: 'Kadang berkedip tidak stabil / lambat respon', score: 50, code: 'SEDANG' },
@@ -56,75 +65,75 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
         ]
       },
       {
-        q: 'Apakah terdapat kendala pada layar display atau visual tampilan perangkat?',
+        q: 'Apakah terdapat kendala visual pada layar display atau monitor perangkat?',
         opts: [
-          { text: 'Tampilan jernih, tajam, dan normal', score: 0, code: 'RINGAN' },
-          { text: 'Layar berkedip sesekali, garis tipis, atau brightness drop', score: 50, code: 'SEDANG' },
+          { text: 'Tampilan jernih, tajam, dan normal tanpa cacat', score: 0, code: 'RINGAN' },
+          { text: 'Layar berkedip sesekali, garis tipis, atau backlight redup', score: 50, code: 'SEDANG' },
           { text: 'Layar blank hitam, artefak pecah, atau retak fisik parah', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Bagaimana kestabilan suhu dan suara komponen pendingin (fan) saat beroperasi?',
+        q: 'Bagaimana kestabilan suhu dan suara komponen pendingin (kipas/heatsink) saat beroperasi?',
         opts: [
-          { text: 'Suhu adem, suara kipas halus dan normal', score: 0, code: 'RINGAN' },
-          { text: 'Cepat hangat/panas dan kipas terdengar berdengung keras', score: 50, code: 'SEDANG' },
-          { text: 'Sangat panas mendidih (Overheat ekstrim) lalu mati mendadak (Thermal Shutdown)', score: 100, code: 'KRITIS' }
+          { text: 'Suhu adem, suara kipas halus dan berputar wajar', score: 0, code: 'RINGAN' },
+          { text: 'Cepat panas dan kipas terdengar berdengung bising', score: 50, code: 'SEDANG' },
+          { text: 'Sangat panas ekstrem (Overheat) lalu mati mendadak (Thermal Shutdown)', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Apakah sistem operasi mengalami freeze, restart otomatis, atau Blue Screen (BSOD)?',
+        q: 'Apakah sistem operasi mengalami freeze/macet, restart otomatis, atau Blue Screen (BSOD)?',
         opts: [
-          { text: 'Sistem sangat stabil, tidak pernah crash', score: 0, code: 'RINGAN' },
-          { text: 'Terkadang lag atau aplikasi force close sesekali', score: 50, code: 'SEDANG' },
-          { text: 'Sering restart sendiri secara berulang atau bootloop', score: 100, code: 'KRITIS' }
+          { text: 'Sistem sangat stabil, tidak pernah crash ataupun restart sendiri', score: 0, code: 'RINGAN' },
+          { text: 'Terkadang lag / aplikasi force close saat multitasking', score: 50, code: 'SEDANG' },
+          { text: 'Sering restart sendiri secara berulang atau gagal booting (Bootloop)', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Bagaimana kondisi media penyimpanan (SSD/HDD) dan kecepatan baca/tulis data?',
+        q: 'Bagaimana kondisi media penyimpanan data (SSD/HDD) dan performa transfer berkas?',
         opts: [
-          { text: 'Booting sangat cepat dan respon transfer file lancar', score: 0, code: 'RINGAN' },
-          { text: 'Loading aplikasi lambat, disk usage sering 100%', score: 50, code: 'SEDANG' },
-          { text: 'Sistem mendadak corrupt, bad sector terdeteksi, atau drive tidak terbaca', score: 100, code: 'KRITIS' }
+          { text: 'Booting sangat cepat dan respon baca/tulis lancar', score: 0, code: 'RINGAN' },
+          { text: 'Loading aplikasi lambat, disk usage sering mentok 100%', score: 50, code: 'SEDANG' },
+          { text: 'Sistem corrupted, terdeteksi bad sector, atau storage tidak terbaca', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Bagaimana kondisi baterai perangkat saat digunakan tanpa charger?',
+        q: 'Bagaimana ketahanan baterai perangkat saat digunakan tanpa sambungan charger?',
         opts: [
-          { text: 'Daya tahan awet sesuai spesifikasi pabrikan', score: 0, code: 'RINGAN' },
+          { text: 'Daya tahan awet sesuai kapasitas spesifikasi pabrikan', score: 0, code: 'RINGAN' },
           { text: 'Baterai cepat drop berkurang drastis di bawah 2 jam', score: 50, code: 'SEDANG' },
           { text: 'Baterai kembung / harus colok charger terus menerus agar tidak mati', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Apakah input keyboard, touchpad, atau tombol fisik merespon dengan baik?',
+        q: 'Apakah input keyboard, tombol fisik, touchscreen, atau touchpad merespons dengan presisi?',
         opts: [
-          { text: 'Semua tombol merespon empuk dan responsif', score: 0, code: 'RINGAN' },
-          { text: 'Ada 1-2 tombol macet atau kadang mengetik ganda', score: 50, code: 'SEDANG' },
-          { text: 'Seluruh input macet total / korsleting jalur tombol', score: 100, code: 'KRITIS' }
+          { text: 'Semua tombol dan sensor responsif serta empuk digunakan', score: 0, code: 'RINGAN' },
+          { text: 'Ada 1-2 tombol macet atau kadang terjadi pengetikan ganda', score: 50, code: 'SEDANG' },
+          { text: 'Seluruh input macet total / korsleting jalur controller', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Bagaimana konektivitas jaringan nirkabel (Wi-Fi, Bluetooth) dan port fisik (USB, Audio)?',
+        q: 'Bagaimana konektivitas modul nirkabel (Wi-Fi, Bluetooth) dan port fisik (USB, Audio, HDMI)?',
         opts: [
-          { text: 'Semua port dan sinyal nirkabel terhubung stabil', score: 0, code: 'RINGAN' },
-          { text: 'Sinyal Wi-Fi sering putus nyambung atau port agak longgar', score: 50, code: 'SEDANG' },
-          { text: 'Hardware Wi-Fi/port mati permanen dan tidak terdeteksi sistem', score: 100, code: 'KRITIS' }
+          { text: 'Semua port dan sinyal nirkabel terhubung stabil dan cepat', score: 0, code: 'RINGAN' },
+          { text: 'Sinyal Wi-Fi sering terputus atau soket port agak longgar', score: 50, code: 'SEDANG' },
+          { text: 'Modul hardware Wi-Fi / port mati permanen tidak terbaca di OS', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Apakah perangkat pernah terkena benturan keras, getaran ekstrem, atau tumpahan cairan?',
+        q: 'Apakah perangkat pernah mengalami benturan fisik keras, getaran kuat, atau tumpahan cairan?',
         opts: [
-          { text: 'Tidak pernah, penggunaan selalu hati-hati dan aman', score: 0, code: 'RINGAN' },
-          { text: 'Pernah terbentur ringan tanpa ada retakan atau basah', score: 50, code: 'SEDANG' },
-          { text: 'Pernah terkena cairan atau benturan keras berbekas', score: 100, code: 'KRITIS' }
+          { text: 'Tidak pernah, penggunaan selalu terlindungi dan aman', score: 0, code: 'RINGAN' },
+          { text: 'Pernah terbentur ringan tanpa ada keretakan atau rembesan air', score: 50, code: 'SEDANG' },
+          { text: 'Pernah tersiram cairan atau jatuh keras dengan retakan terbuka', score: 100, code: 'KRITIS' }
         ]
       },
       {
-        q: 'Bagaimana kondisi fisik engsel, casing pelindung, dan struktur bodi perangkat?',
+        q: 'Bagaimana kondisi fisik engsel, casing pelindung, dan struktur mekanis bodi perangkat?',
         opts: [
-          { text: 'Struktur kokoh, rapat, dan mulus sempurna', score: 0, code: 'RINGAN' },
-          { text: 'Engsel agak kendor atau baret pemakaian wajar', score: 50, code: 'SEDANG' },
-          { text: 'Engsel patah, casing pecah, atau struktur terbuka membahayakan komponen dalam', score: 100, code: 'KRITIS' }
+          { text: 'Struktur kokoh, presisi, rapat, dan mulus terawat', score: 0, code: 'RINGAN' },
+          { text: 'Engsel agak longgar atau terdapat goresan pemakaian wajar', score: 50, code: 'SEDANG' },
+          { text: 'Engsel patah, casing terbelah, atau rangka bodi melengkung parah', score: 100, code: 'KRITIS' }
         ]
       }
     ];
@@ -138,14 +147,14 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
         options: item.opts.map((opt, optIdx) => ({
           id: qId + optIdx + 1,
           option_text: opt.text,
-          score_value: opt.score, // 0 untuk Ringan, 50 untuk Sedang, 100 untuk Kritis
+          score_value: opt.score, // 0 = Ringan, 50 = Sedang, 100 = Kritis
           result_code: opt.code
         }))
       };
     });
   };
 
-  // State Pertanyaan (Default diawali dengan Preset 5 Pertanyaan)
+  // State Pertanyaan di Form Modal (Default Preset 5 Pertanyaan)
   const [questions, setQuestions] = useState(() => generateQuestionsPreset(5));
 
   // Aturan Evaluasi Skor Hasil
@@ -155,37 +164,37 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
       min_score: 0,
       max_score: 35,
       result_code: 'RINGAN',
-      title: 'Kondisi Baik / Kendala Sangat Ringan',
+      title: 'Kondisi Baik / Kendala Ringan',
       badge: 'Kondisi Optimal',
       badge_color: '#10b981',
-      description: 'Perangkat berada dalam kondisi prima dengan kendala minimal. Cukup lakukan pembersihan file cache atau update driver berkala.',
-      recommendation: 'Lakukan pembersihan debu rutin dan hindari penggunaan beban tinggi tanpa ventilasi yang memadai.'
+      description: 'Perangkat berada dalam kondisi prima dengan kendala minimal. Cukup lakukan pembersihan berkala dan update sistem operasi.',
+      recommendation: 'Lakukan perawatan mandiri secara berkala dan bersihkan sirkulasi ventilasi dari debu.'
     },
     {
       id: 2,
       min_score: 36,
       max_score: 70,
       result_code: 'SEDANG',
-      title: 'Perlu Perawatan & Pengecekan Menengah',
+      title: 'Perlu Servis & Perawatan Menengah',
       badge: 'Perlu Perawatan',
       badge_color: '#f59e0b',
-      description: 'Terdeteksi indikasi penurunan performa atau komponen aus yang membutuhkan pengecekan teknis sebelum bertambah parah.',
-      recommendation: 'Jadwalkan servis pembersihan heatsink, penggantian thermal paste, dan optimasi sistem berkala.'
+      description: 'Terindikasi penurunan performa atau keausan komponen yang memerlukan penanganan teknisi sebelum kerusakan menjalar.',
+      recommendation: 'Jadwalkan pembersihan internal, pergantian pasta termal pendingin, dan backup data penting.'
     },
     {
       id: 3,
       min_score: 71,
       max_score: 100,
       result_code: 'KRITIS',
-      title: 'Indikasi Kerusakan Kritis / Serius',
+      title: 'Indikasi Kerusakan Hardware Kritis',
       badge: 'Kerusakan Kritis',
       badge_color: '#ef4444',
-      description: 'Terindikasi kerusakan signifikan pada komponen hardware inti yang berpotensi mati total bila terus dipaksakan beroperasi.',
-      recommendation: 'Segera matikan perangkat dan bawa ke teknisi profesional CTW untuk diagnosa hardware mendalam.'
+      description: 'Terindikasi kegagalan pada komponen inti yang berisiko menyebabkan kerusakan permanen atau mati total jika terus dioperasikan.',
+      recommendation: 'Segera matikan perangkat dan bawa ke laboratorium perbaikan CTW untuk pemeriksaan teknis mendalam.'
     }
   ]);
 
-  // Loading & Feedback State
+  // Loading & Feedback States
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -200,10 +209,10 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1. Memuat Daftar Kuis dari Supabase
+  // 1. Memuat Seluruh Kuis dari Supabase
   const loadQuizzes = async () => {
     setIsLoadingQuizzes(true);
     try {
@@ -220,6 +229,45 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     loadQuizzes();
   }, []);
 
+  // Buka Modal Pembuatan Kuis Baru
+  const handleOpenCreateModal = () => {
+    setEditingQuizId(null);
+    setTitle('');
+    setCategory('Laptop & PC');
+    setSlug('');
+    setStatus('active');
+    setDescription('');
+    setThumbnail('');
+    setQuestions(generateQuestionsPreset(5, 'Laptop & PC'));
+    setSaveError(null);
+    setIsModalOpen(true);
+  };
+
+  // Buka Modal Edit Kuis
+  const handleOpenEditModal = async (quizItem) => {
+    setEditingQuizId(quizItem.id);
+    setTitle(quizItem.title || '');
+    setCategory(quizItem.category || 'Laptop & PC');
+    setSlug(quizItem.slug || '');
+    setStatus(quizItem.status || 'active');
+    setDescription(quizItem.description || '');
+    setThumbnail(quizItem.thumbnail || '');
+    setSaveError(null);
+    setIsModalOpen(true);
+
+    try {
+      const detail = await getQuizById(quizItem.id);
+      if (detail?.questions && detail.questions.length > 0) {
+        setQuestions(detail.questions);
+      }
+      if (detail?.result_rules && detail.result_rules.length > 0) {
+        setResultRules(detail.result_rules);
+      }
+    } catch (err) {
+      console.warn('Gagal memuat detail pertanyaan kuis:', err);
+    }
+  };
+
   // Terapkan Preset Pertanyaan secara Dinamis (3, 5, 7, atau 10 Pertanyaan)
   const handleApplyPreset = (count) => {
     const presetQuestions = generateQuestionsPreset(count, category);
@@ -227,7 +275,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     showToast(`✨ Preset ${count} pertanyaan berhasil diterapkan!`);
   };
 
-  // Tambah Pertanyaan Kustom
+  // Tambah Pertanyaan Baru secara Dinamis
   const handleAddQuestion = () => {
     const nextQId = Date.now();
     setQuestions((prev) => [
@@ -253,7 +301,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     setQuestions((prev) => prev.filter((_, idx) => idx !== qIndex));
   };
 
-  // Edit Teks atau Skor Opsi
+  // Update Teks / Skor Opsi
   const handleUpdateOption = (qIndex, optIndex, field, value) => {
     setQuestions((prev) => {
       const next = [...prev];
@@ -266,33 +314,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     });
   };
 
-  // Edit Kuis yang Sudah Ada
-  const handleStartEditQuiz = async (quizItem) => {
-    setEditingQuizId(quizItem.id);
-    setTitle(quizItem.title || '');
-    setCategory(quizItem.category || 'Laptop & PC');
-    setSlug(quizItem.slug || '');
-    setStatus(quizItem.status || 'active');
-    setDescription(quizItem.description || '');
-    setThumbnail(quizItem.thumbnail || '');
-
-    try {
-      const detail = await getQuizById(quizItem.id);
-      if (detail?.questions && detail.questions.length > 0) {
-        setQuestions(detail.questions);
-      }
-      if (detail?.result_rules && detail.result_rules.length > 0) {
-        setResultRules(detail.result_rules);
-      }
-    } catch (e) {
-      console.warn('Gagal memuat detail pertanyaan saat edit:', e);
-    }
-
-    setActiveTab('builder');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // 3. Simpan Kuis (saveQuiz)
+  // 3. Simpan Kuis (saveQuiz) Langsung ke Supabase
   const handleSaveQuiz = async (e) => {
     e.preventDefault();
     setSaveError(null);
@@ -343,7 +365,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
         resultRules
       };
 
-      // Panggil fungsi saveQuiz dari quizService
+      // Kirim seluruh payload data ke Supabase menggunakan saveQuiz
       const res = await saveQuiz(quizPayload);
 
       if (res && res.quiz_id) {
@@ -353,15 +375,9 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
           id: res.quiz_id,
           title: cleanTitle
         });
-        showToast('✅ Kuis berhasil disimpan dan dipublikasikan!');
+        showToast('✅ Kuis baru berhasil dibuat dan disimpan ke database Supabase!');
+        setIsModalOpen(false);
         loadQuizzes();
-
-        if (!editingQuizId) {
-          setTitle('');
-          setDescription('');
-          setSlug('');
-          setQuestions(generateQuestionsPreset(5));
-        }
       }
     } catch (err) {
       console.error('Error saat menyimpan kuis:', err);
@@ -373,14 +389,14 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     }
   };
 
-  // 4. Eksekusi Hapus Kuis (deleteQuiz)
+  // 4. Hapus Kuis (deleteQuiz) Langsung dari Supabase
   const handleExecuteDelete = async () => {
     if (!deleteConfirmQuiz) return;
     setIsDeleting(true);
 
     try {
       await deleteQuiz(deleteConfirmQuiz.id);
-      showToast('✅ Kuis berhasil dihapus secara permanen.');
+      showToast(`✅ Kuis "${deleteConfirmQuiz.title}" berhasil dihapus secara permanen dari Supabase.`);
       setQuizzes((prev) => prev.filter((q) => String(q.id) !== String(deleteConfirmQuiz.id)));
       setDeleteConfirmQuiz(null);
     } catch (err) {
@@ -391,13 +407,13 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
     }
   };
 
-  // Salin Link Publik
+  // Salin Link Publik Kuis
   const handleCopyShareLink = () => {
     if (!shareModalData?.url) return;
     navigator.clipboard.writeText(shareModalData.url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
-      showToast('Tautan publik berhasil disalin!');
+      showToast('Tautan kuis berhasil disalin!');
     });
   };
 
@@ -423,61 +439,63 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-black uppercase tracking-wider mb-2 border border-blue-100">
             <Settings2 className="w-3.5 h-3.5" />
-            <span>Admin Panel Management Kuis</span>
+            <span>Admin Panel Management CTW</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Manajemen Kuis CTW Interactive
+            Panel Administrator CTW Interactive
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Buat kuis secara instan menggunakan tombol preset pertanyaan dinamis (3, 5, 7, atau 10 soal) dengan bobot skor terkalibrasi (0 Ringan, 50 Sedang, 100 Kritis).
+            Kelola katalog kuis diagnosis, buat kuis baru melalui form modal preset (3, 5, 7, atau 10 soal), serta atur identitas website, banner hero, dan footer kontak.
           </p>
         </div>
 
-        {/* Tab Navigasi */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 border border-slate-200/80 self-start md:self-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('list');
-              setEditingQuizId(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeTab === 'list'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Daftar Kuis ({quizzes.length})</span>
-          </button>
+        {/* Tab Navigasi Admin & Tombol Aksi */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="p-1 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentTab('quizzes')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                currentTab === 'quizzes'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Katalog Kuis ({quizzes.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('builder');
-              if (!editingQuizId) {
-                setTitle('');
-                setDescription('');
-                setSlug('');
-                setQuestions(generateQuestionsPreset(5));
-              }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeTab === 'builder'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            <span>{editingQuizId ? 'Edit Kuis' : 'Buat Kuis Baru'}</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('settings')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                currentTab === 'settings'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Globe className="w-4 h-4" />
+              <span>Pengaturan Website</span>
+            </button>
+          </div>
+
+          {currentTab === 'quizzes' && (
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Buat Kuis Baru</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* TAB 1: LIST / DAFTAR KUIS                                */}
+      {/* KONTEN TAB 1: DAFTAR TABEL KUIS                          */}
       {/* ======================================================== */}
-      {activeTab === 'list' && (
+      {currentTab === 'quizzes' && (
         <div className="space-y-4">
           {/* Search & Actions Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-white shadow-soft-flat border border-slate-100">
@@ -502,17 +520,11 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
               </button>
 
               <button
-                onClick={() => {
-                  setActiveTab('builder');
-                  setEditingQuizId(null);
-                  setTitle('');
-                  setDescription('');
-                  setQuestions(generateQuestionsPreset(5));
-                }}
+                onClick={handleOpenCreateModal}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Kuis Baru</span>
+                <span>Tambah Kuis</span>
               </button>
             </div>
           </div>
@@ -522,7 +534,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
             {isLoadingQuizzes ? (
               <div className="py-20 text-center">
                 <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-xs font-bold text-slate-500">Memuat data kuis dari database...</p>
+                <p className="text-xs font-bold text-slate-500">Memuat data kuis dari database Supabase...</p>
               </div>
             ) : filteredQuizzes.length === 0 ? (
               <div className="py-16 text-center space-y-3 px-4">
@@ -531,13 +543,10 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
                 </div>
                 <h3 className="text-base font-bold text-slate-800">Tidak Ada Kuis Ditemukan</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Mulai buat kuis pertamamu menggunakan tombol preset dinamis di bawah.
+                  Mulai buat kuis pertamamu menggunakan tombol Buat Kuis Baru di atas.
                 </p>
                 <button
-                  onClick={() => {
-                    setActiveTab('builder');
-                    setEditingQuizId(null);
-                  }}
+                  onClick={handleOpenCreateModal}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all"
                 >
                   Buat Kuis Sekarang
@@ -607,7 +616,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
                                 </button>
                               )}
                               <button
-                                onClick={() => handleStartEditQuiz(q)}
+                                onClick={() => handleOpenEditModal(q)}
                                 className="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                 title="Edit Kuis"
                               >
@@ -616,7 +625,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
                               <button
                                 onClick={() => setDeleteConfirmQuiz(q)}
                                 className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                title="Hapus Kuis"
+                                title="Hapus Kuis Secara Permanen"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -634,277 +643,311 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: BUILDER / FORM KUIS                               */}
+      {/* KONTEN TAB 2: PENGATURAN WEBSITE                          */}
       {/* ======================================================== */}
-      {activeTab === 'builder' && (
-        <form onSubmit={handleSaveQuiz} className="space-y-6">
-          {saveError && (
-            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{saveError}</span>
-            </div>
-          )}
+      {currentTab === 'settings' && <SiteSettings />}
 
-          {/* Section Preset Cepat Pembuatan Soal */}
-          <div className="p-6 rounded-3xl bg-linear-to-r from-blue-600 to-indigo-700 text-white shadow-lg space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-wider mb-1">
-                  <ListPlus className="w-3.5 h-3.5" />
-                  <span>Preset Dinamis</span>
-                </span>
-                <h3 className="text-lg font-black tracking-tight">Preset Jumlah Pertanyaan Kuis</h3>
-                <p className="text-xs text-blue-100 max-w-xl">
-                  Pilih preset jumlah soal di bawah untuk mengisi form pertanyaan secara instan dengan 3 opsi skor terkalibrasi (0, 50, 100):
-                </p>
-              </div>
 
-              {/* Tombol Preset 3, 5, 7, 10 Pertanyaan */}
-              <div className="flex flex-wrap items-center gap-2">
-                {[3, 5, 7, 10].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => handleApplyPreset(num)}
-                    className={`px-3.5 py-2 rounded-xl font-black text-xs transition-all shadow-xs ${
-                      questions.length === num
-                        ? 'bg-white text-blue-700 shadow-md scale-105 ring-2 ring-blue-300'
-                        : 'bg-white/15 text-white hover:bg-white/25'
-                    }`}
-                  >
-                    {num} Pertanyaan
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 1. Informasi Utama Kuis */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-white shadow-soft-card border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-extrabold text-slate-900">1. Data Informasi Kuis</h3>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                {editingQuizId ? `Edit ID #${editingQuizId}` : 'Kuis Baru'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-slate-700">Judul Kuis *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Skrining Diagnosa Hardware & Kestabilan Sistem"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Kategori Perangkat</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="Laptop & PC">Laptop &amp; PC</option>
-                  <option value="HP / Smartphone">HP / Smartphone</option>
-                  <option value="Printer & Periferal">Printer &amp; Periferal</option>
-                  <option value="Jaringan & Internet">Jaringan &amp; Internet</option>
-                  <option value="Umum">Umum / Lainnya</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Status Publikasi</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="active">Active (Tersedia untuk Pengguna)</option>
-                  <option value="draft">Draft (Simpan Sementara)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-bold text-slate-700">Deskripsi / Petunjuk Diagnosis</label>
-                <textarea
-                  rows={2}
-                  placeholder="Deskripsikan tujuan dan instruksi pengerjaan kuis ini..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Daftar Pertanyaan & Opsi Skor */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-white shadow-soft-card border border-slate-100 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  2. Pertanyaan &amp; Opsi Skor ({questions.length} Soal)
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Setiap pertanyaan memiliki 3 opsi dengan skor terstandar: <strong>0 (Ringan)</strong>, <strong>50 (Sedang)</strong>, dan <strong>100 (Kritis)</strong>.
-                </p>
+      {/* ======================================================== */}
+      {/* MODAL FORM PEMBUATAN / EDIT KUIS INTERAKTIF              */}
+      {/* ======================================================== */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">
+                    {editingQuizId ? 'Edit Kuis Interaktif' : 'Form Pembuatan Kuis Baru'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Atur detail kuis, pilih preset jumlah soal, dan tetapkan skor evaluasi.
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleAddQuestion}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs transition-colors self-start sm:self-auto"
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Pertanyaan Kustom</span>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-6">
-              {questions.map((q, qIdx) => (
-                <div key={q.id || qIdx} className="p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-black text-blue-600 uppercase tracking-wider bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                      Soal #{qIdx + 1}
+            {/* Modal Body (Scrollable Form) */}
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1">
+              {saveError && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
+              {/* 1. Baris Preset Cepat Jumlah Soal (3, 5, 7, 10 Soal) */}
+              <div className="p-5 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-700 text-white shadow-md space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-wider mb-1">
+                      <ListPlus className="w-3.5 h-3.5" />
+                      <span>Pilihan Preset Soal</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveQuestion(qIdx)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                      title="Hapus Soal"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <h3 className="text-base font-black tracking-tight">Preset Jumlah Pertanyaan Kuis</h3>
+                    <p className="text-xs text-blue-100 max-w-lg">
+                      Pilih preset untuk menghasilkan pertanyaan otomatis beserta 3 opsi jawaban berskor (0 = Ringan, 50 = Sedang, 100 = Kritis):
+                    </p>
                   </div>
 
-                  <input
-                    type="text"
-                    required
-                    placeholder={`Teks pertanyaan ke-${qIdx + 1}...`}
-                    value={q.question_text}
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      setQuestions((prev) => {
-                        const next = [...prev];
-                        next[qIdx].question_text = text;
-                        return next;
-                      });
-                    }}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-
-                  {/* 3 Opsi Jawaban (0, 50, 100) */}
-                  <div className="space-y-2 pt-1">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                      3 Opsi Jawaban &amp; Bobot Skor Kerusakan:
-                    </label>
-
-                    {q.options.map((opt, optIdx) => {
-                      const scoreLabel =
-                        opt.score_value === 0
-                          ? 'Ringan (0)'
-                          : opt.score_value === 50
-                          ? 'Sedang (50)'
-                          : opt.score_value === 100
-                          ? 'Kritis (100)'
-                          : `${opt.score_value} Poin`;
-
-                      const badgeStyle =
-                        opt.score_value === 0
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : opt.score_value === 50
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-rose-50 text-rose-700 border-rose-200';
-
-                      return (
-                        <div
-                          key={opt.id || optIdx}
-                          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs"
-                        >
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="w-6 text-center text-xs font-black text-slate-400">
-                              {String.fromCharCode(65 + optIdx)}.
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${badgeStyle}`}>
-                              {scoreLabel}
-                            </span>
-                          </div>
-
-                          <input
-                            type="text"
-                            required
-                            placeholder={`Pilihan ${String.fromCharCode(65 + optIdx)}...`}
-                            value={opt.option_text}
-                            onChange={(e) => handleUpdateOption(qIdx, optIdx, 'option_text', e.target.value)}
-                            className="flex-1 px-3 py-1.5 rounded-lg bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-600"
-                          />
-
-                          <div className="flex items-center justify-end gap-1.5 shrink-0 self-end sm:self-auto">
-                            <label className="text-[11px] text-slate-400 font-bold">Skor:</label>
-                            <select
-                              value={opt.score_value}
-                              onChange={(e) => {
-                                const pts = parseInt(e.target.value, 10);
-                                handleUpdateOption(qIdx, optIdx, 'score_value', pts);
-                                handleUpdateOption(
-                                  qIdx,
-                                  optIdx,
-                                  'result_code',
-                                  pts === 0 ? 'RINGAN' : pts === 50 ? 'SEDANG' : 'KRITIS'
-                                );
-                              }}
-                              className="px-2 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 focus:outline-none"
-                            >
-                              <option value={0}>0 (Ringan)</option>
-                              <option value={50}>50 (Sedang)</option>
-                              <option value={100}>100 (Kritis)</option>
-                            </select>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  {/* Tombol Preset 3, 5, 7, 10 Pertanyaan */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[3, 5, 7, 10].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => handleApplyPreset(num)}
+                        className={`px-3.5 py-2 rounded-xl font-black text-xs transition-all shadow-xs ${
+                          questions.length === num
+                            ? 'bg-white text-blue-700 shadow-md scale-105 ring-2 ring-blue-300'
+                            : 'bg-white/15 text-white hover:bg-white/25'
+                        }`}
+                      >
+                        {num} Soal
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* 2. Informasi Utama Kuis */}
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-200/80 pb-2">
+                  1. Data Informasi Kuis
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-xs font-bold text-slate-700">Judul Kuis *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Skrining Diagnosa Hardware & Kestabilan Sistem"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">Kategori Perangkat</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="Laptop & PC">Laptop &amp; PC</option>
+                      <option value="HP / Smartphone">HP / Smartphone</option>
+                      <option value="Printer & Periferal">Printer &amp; Periferal</option>
+                      <option value="Jaringan & Internet">Jaringan &amp; Internet</option>
+                      <option value="Umum">Umum / Lainnya</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">Status Publikasi</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="active">Active (Tersedia untuk Pengguna)</option>
+                      <option value="draft">Draft (Simpan Sementara)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-xs font-bold text-slate-700">Deskripsi / Petunjuk Pengguna</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Deskripsikan tujuan dan petunjuk diagnosis bagi pengguna..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Bidang Input Dinamis Pertanyaan & 3 Opsi Jawaban */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      2. Daftar Pertanyaan &amp; 3 Opsi Jawaban ({questions.length} Soal)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Nilai bobot terkalibrasi: <strong>0 = Ringan</strong>, <strong>50 = Sedang</strong>, <strong>100 = Kritis</strong>.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddQuestion}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs transition-colors self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Soal</span>
+                  </button>
+                </div>
+
+                <div className="space-y-5">
+                  {questions.map((q, qIdx) => (
+                    <div key={q.id || qIdx} className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-3.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black text-blue-600 uppercase tracking-wider bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                          Pertanyaan #{qIdx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveQuestion(qIdx)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Hapus Soal"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <input
+                        type="text"
+                        required
+                        placeholder={`Teks pertanyaan ke-${qIdx + 1}...`}
+                        value={q.question_text}
+                        onChange={(e) => {
+                          const text = e.target.value;
+                          setQuestions((prev) => {
+                            const next = [...prev];
+                            next[qIdx].question_text = text;
+                            return next;
+                          });
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white text-xs font-semibold text-slate-800 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      />
+
+                      {/* 3 Opsi Jawaban (0, 50, 100) */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                          3 Opsi Jawaban &amp; Bobot Nilai:
+                        </label>
+
+                        {q.options.map((opt, optIdx) => {
+                          const scoreLabel =
+                            opt.score_value === 0
+                              ? 'Ringan (0)'
+                              : opt.score_value === 50
+                              ? 'Sedang (50)'
+                              : opt.score_value === 100
+                              ? 'Kritis (100)'
+                              : `${opt.score_value} Poin`;
+
+                          const badgeStyle =
+                            opt.score_value === 0
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : opt.score_value === 50
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200';
+
+                          return (
+                            <div
+                              key={opt.id || optIdx}
+                              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="w-6 text-center text-xs font-black text-slate-400">
+                                  {String.fromCharCode(65 + optIdx)}.
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${badgeStyle}`}>
+                                  {scoreLabel}
+                                </span>
+                              </div>
+
+                              <input
+                                type="text"
+                                required
+                                placeholder={`Pilihan ${String.fromCharCode(65 + optIdx)}...`}
+                                value={opt.option_text}
+                                onChange={(e) => handleUpdateOption(qIdx, optIdx, 'option_text', e.target.value)}
+                                className="flex-1 px-3 py-1.5 rounded-lg bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                              />
+
+                              <div className="flex items-center justify-end gap-1.5 shrink-0 self-end sm:self-auto">
+                                <label className="text-[11px] text-slate-400 font-bold">Skor:</label>
+                                <select
+                                  value={opt.score_value}
+                                  onChange={(e) => {
+                                    const pts = parseInt(e.target.value, 10);
+                                    handleUpdateOption(qIdx, optIdx, 'score_value', pts);
+                                    handleUpdateOption(
+                                      qIdx,
+                                      optIdx,
+                                      'result_code',
+                                      pts === 0 ? 'RINGAN' : pts === 50 ? 'SEDANG' : 'KRITIS'
+                                    );
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 focus:outline-none"
+                                >
+                                  <option value={0}>0 (Ringan)</option>
+                                  <option value={50}>50 (Sedang)</option>
+                                  <option value={100}>100 (Kritis)</option>
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer / Action Bar */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors border border-slate-200"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveQuiz}
+                disabled={isSaving}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menyimpan ke Supabase...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Simpan Kuis</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
-
-          {/* Action Save Bar */}
-          <div className="p-6 rounded-3xl bg-slate-100 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={() => setActiveTab('list')}
-              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
-            >
-              Batal &amp; Kembali ke Daftar
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Menyimpan ke Supabase...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Simpan &amp; Publikasikan Kuis</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        </div>
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 1: SHAREABLE LINK KUIS                             */}
+      {/* MODAL SHAREABLE LINK SETELAH KUIS TERSIMPAN              */}
       {/* ======================================================== */}
       {shareModalData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
@@ -922,9 +965,9 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
             </div>
 
             <div>
-              <h3 className="text-lg font-black text-slate-900">Kuis Berhasil Dipublikasikan!</h3>
+              <h3 className="text-lg font-black text-slate-900">Kuis Berhasil Disimpan &amp; Masuk ke Database!</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Gunakan tautan publik di bawah untuk dibagikan kepada peserta:
+                Data telah tersimpan di Supabase. Bagikan tautan berikut kepada peserta kuis:
               </p>
             </div>
 
@@ -964,7 +1007,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: KONFIRMASI HAPUS KUIS DIALOG                    */}
+      {/* MODAL KONFIRMASI HAPUS KUIS SECARA PERMANEN              */}
       {/* ======================================================== */}
       {deleteConfirmQuiz && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
@@ -974,9 +1017,9 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
             </div>
 
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Kuis</h3>
+              <h3 className="text-base font-extrabold text-slate-900">Hapus Kuis Secara Permanen?</h3>
               <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                Yakin ingin menghapus kuis <strong>"{deleteConfirmQuiz.title}"</strong>? Semua pertanyaan dan data evaluasi kuis ini akan dihapus secara permanen dari Supabase.
+                Yakin ingin menghapus kuis <strong>"{deleteConfirmQuiz.title}"</strong>? Seluruh pertanyaan, opsi, dan aturan hasil akan dihapus secara permanen dari Supabase SDK tanpa sisa.
               </p>
             </div>
 
@@ -1002,7 +1045,7 @@ export const AdminPanel = ({ onOpenPublicQuiz }) => {
                     <span>Menghapus...</span>
                   </>
                 ) : (
-                  <span>Ya, Hapus</span>
+                  <span>Ya, Hapus Permanen</span>
                 )}
               </button>
             </div>
