@@ -2,12 +2,11 @@ import { supabase, isConfigured } from '../lib/supabaseClient';
 
 /**
  * Data Kuis Cadangan (Default / Seed Data)
- * Digunakan jika Supabase belum terisi atau saat offline/unconfigured.
- * Memastikan aplikasi tetap interaktif dan tidak mengalami crash.
+ * Digunakan HANYA jika Supabase belum terkonfigurasi atau secara eksplisit offline.
  */
 export const DEFAULT_QUIZZES = [
   {
-    id: 1,
+    id: '1',
     title: 'Skrining & Diagnosis Cepat Kerusakan Perangkat Elektronik',
     slug: 'skrining-diagnosis-kerusakan-elektronik',
     description: 'Jawab pertanyaan mengenai kendala fisik, performa, atau indikator error pada Laptop, Komputer, HP, atau Printer milikmu. Sistem CTW akan menganalisis indikasi kerusakan dan memberikan rekomendasi perbaikan.',
@@ -21,7 +20,7 @@ export const DEFAULT_QUIZZES = [
     total_questions: 3
   },
   {
-    id: 2,
+    id: '2',
     title: 'Diagnostik Kesehatan Baterai & Layar Smartphone',
     slug: 'diagnostik-kesehatan-baterai-layar-hp',
     description: 'Pemeriksaan performa charging, degradasi cell baterai lithium, sensitivitas touchscreen, dan visual display pada HP Android & iOS.',
@@ -35,7 +34,7 @@ export const DEFAULT_QUIZZES = [
     total_questions: 3
   },
   {
-    id: 3,
+    id: '3',
     title: 'Deteksi Error Mekanikal & Cetak Printer',
     slug: 'deteksi-error-mekanikal-cetak-printer',
     description: 'Identifikasi gejala Paper Jam, head cleaning cartridge buntu, blink counter error, dan koneksi kabel data/Wi-Fi printer kantor.',
@@ -53,7 +52,7 @@ export const DEFAULT_QUIZZES = [
 export const DEFAULT_QUESTIONS = [
   {
     id: 1,
-    quiz_id: 1,
+    quiz_id: '1',
     question_text: 'Bagaimana kondisi perangkat saat tombol daya (Power) ditekan?',
     image_url: null,
     sort_order: 1,
@@ -65,7 +64,7 @@ export const DEFAULT_QUESTIONS = [
   },
   {
     id: 2,
-    quiz_id: 1,
+    quiz_id: '1',
     question_text: 'Apakah perangkat sering terasa panas berlebih (overheat) atau berbunyi bising?',
     image_url: null,
     sort_order: 2,
@@ -77,7 +76,7 @@ export const DEFAULT_QUESTIONS = [
   },
   {
     id: 3,
-    quiz_id: 1,
+    quiz_id: '1',
     question_text: 'Bagaimana kondisi baterai dan pengisian daya saat ini?',
     image_url: null,
     sort_order: 3,
@@ -92,7 +91,7 @@ export const DEFAULT_QUESTIONS = [
 export const DEFAULT_RESULT_RULES = [
   {
     id: 1,
-    quiz_id: 1,
+    quiz_id: '1',
     min_score: 0,
     max_score: 35,
     result_code: 'RINGAN',
@@ -105,7 +104,7 @@ export const DEFAULT_RESULT_RULES = [
   },
   {
     id: 2,
-    quiz_id: 1,
+    quiz_id: '1',
     min_score: 36,
     max_score: 70,
     result_code: 'SEDANG',
@@ -118,7 +117,7 @@ export const DEFAULT_RESULT_RULES = [
   },
   {
     id: 3,
-    quiz_id: 1,
+    quiz_id: '1',
     min_score: 71,
     max_score: 100,
     result_code: 'KRITIS',
@@ -132,30 +131,28 @@ export const DEFAULT_RESULT_RULES = [
 ];
 
 /**
- * 1. Mengambil Daftar Kuis (Pure Supabase Client Query)
- * Tanpa fallback request ke /api/quizzes atau quizzes.php untuk mencegah error 404 & JSON SyntaxError.
+ * 1. MENGAMBIL DAFTAR KUIS (Pure Supabase Client Query)
  */
 export async function getQuizzes({ category = 'Semua', search = '' } = {}) {
   let rawQuizzes = [];
 
-  // Query murni menggunakan Supabase Client SDK jika sudah dikonfigurasi
   if (isConfigured) {
     try {
       const { data, error } = await supabase
         .from('quizzes')
         .select('*')
-        .order('id', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data) && data.length > 0) {
         rawQuizzes = data;
       }
     } catch (err) {
-      console.warn('⚠️ [quizService] Query Supabase quizzes gagal, beralih ke data lokal:', err);
+      console.warn('⚠️ [quizService] Query Supabase quizzes gagal:', err);
     }
   }
 
-  // Jika Supabase kosong atau unconfigured, gunakan data default aman
-  if (rawQuizzes.length === 0) {
+  // Jika Supabase kosong dan belum terisi data sama sekali, gunakan data default
+  if (rawQuizzes.length === 0 && !isConfigured) {
     rawQuizzes = [...DEFAULT_QUIZZES];
   }
 
@@ -195,8 +192,8 @@ export async function getQuizzes({ category = 'Semua', search = '' } = {}) {
 }
 
 /**
- * 2. Mengambil Detail Kuis Lengkap Berdasarkan ID (Pure Supabase Client Query)
- * Parameter ID dibaca sebagai string dan pemanggilan paralel untuk pertanyaan & aturan hasil.
+ * 2. MENGAMBIL DETAIL KUIS BERDASARKAN ID
+ * PERBAIKAN: Menghapus fallback paksa ke DEFAULT_QUIZZES[0] agar ID baru tidak salah menampilkan kuis default.
  */
 export async function getQuizById(quizId) {
   const cleanId = String(quizId || '').trim();
@@ -221,17 +218,15 @@ export async function getQuizById(quizId) {
         quizRecord = qData;
       }
 
-      // Coba query sebagai integer jika format numerik
+      // Coba query sebagai numeric jika format angka
       if (!quizRecord && /^\d+$/.test(cleanId)) {
         const numId = parseInt(cleanId, 10);
-        if (numId < 2147483647) {
-          const { data: numData } = await supabase
-            .from('quizzes')
-            .select('*')
-            .eq('id', numId)
-            .maybeSingle();
-          if (numData) quizRecord = numData;
-        }
+        const { data: numData } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('id', numId)
+          .maybeSingle();
+        if (numData) quizRecord = numData;
       }
 
       // Coba query berdasarkan slug
@@ -244,33 +239,31 @@ export async function getQuizById(quizId) {
         if (slugData) quizRecord = slugData;
       }
 
+      // 2. Jika kuis ditemukan, ambil pertanyaan dan aturan hasilnya
       if (quizRecord) {
         const targetId = String(quizRecord.id || cleanId);
 
-        // 2. Pemanggilan PARALEL untuk pertanyaan dan aturan evaluasi hasil
         const [questionsRes, rulesRes] = await Promise.all([
-          // Pertanyaan & Opsi
+          // Query Pertanyaan & Opsi
           (async () => {
             let qList = [];
-            // Coba quiz_questions
             try {
-              const { data: qq, error: qqErr } = await supabase
+              const { data: qq } = await supabase
                 .from('quiz_questions')
                 .select('*')
                 .eq('quiz_id', targetId)
                 .order('sort_order', { ascending: true });
-              if (!qqErr && Array.isArray(qq) && qq.length > 0) qList = qq;
+              if (Array.isArray(qq) && qq.length > 0) qList = qq;
             } catch (e) {}
 
-            // Fallback questions
             if (qList.length === 0) {
               try {
-                const { data: qs, error: qsErr } = await supabase
+                const { data: qs } = await supabase
                   .from('questions')
                   .select('*')
                   .eq('quiz_id', targetId)
                   .order('sort_order', { ascending: true });
-                if (!qsErr && Array.isArray(qs) && qs.length > 0) qList = qs;
+                if (Array.isArray(qs) && qs.length > 0) qList = qs;
               } catch (e) {}
             }
 
@@ -308,24 +301,24 @@ export async function getQuizById(quizId) {
             return [];
           })(),
 
-          // Aturan Hasil
+          // Query Aturan Hasil
           (async () => {
             let rList = [];
             try {
-              const { data: rr, error: rrErr } = await supabase
+              const { data: rr } = await supabase
                 .from('quiz_result_rules')
                 .select('*')
                 .eq('quiz_id', targetId);
-              if (!rrErr && Array.isArray(rr) && rr.length > 0) rList = rr;
+              if (Array.isArray(rr) && rr.length > 0) rList = rr;
             } catch (e) {}
 
             if (rList.length === 0) {
               try {
-                const { data: rr2, error: rr2Err } = await supabase
+                const { data: rr2 } = await supabase
                   .from('result_rules')
                   .select('*')
                   .eq('quiz_id', targetId);
-                if (!rr2Err && Array.isArray(rr2) && rr2.length > 0) rList = rr2;
+                if (Array.isArray(rr2) && rr2.length > 0) rList = rr2;
               } catch (e) {}
             }
 
@@ -352,36 +345,118 @@ export async function getQuizById(quizId) {
         resultRules = rulesRes;
       }
     } catch (err) {
-      console.warn('⚠️ [quizService] Query Supabase quiz detail notice:', err);
+      console.warn('⚠️ [quizService] Query Supabase quiz detail error:', err);
     }
   }
 
-  // Jika belum ditemukan di database, cocokkan dengan seed default
+  // JIKA TIDAK DITEMUKAN DI SUPABASE: Cocokkan HANYA jika ID sesuai dengan DEFAULT_QUIZZES
   if (!quizRecord) {
-    quizRecord =
-      DEFAULT_QUIZZES.find(
-        (q) => String(q.id) === cleanId || String(q.slug) === cleanId
-      ) || DEFAULT_QUIZZES[0];
-  }
+    const matchedDefault = DEFAULT_QUIZZES.find(
+      (q) => String(q.id) === cleanId || String(q.slug) === cleanId
+    );
 
-  if (questions.length === 0) {
-    questions = [...DEFAULT_QUESTIONS];
-  }
-
-  if (resultRules.length === 0) {
-    resultRules = [...DEFAULT_RESULT_RULES];
+    if (matchedDefault) {
+      quizRecord = matchedDefault;
+      questions = DEFAULT_QUESTIONS;
+      resultRules = DEFAULT_RESULT_RULES;
+    } else {
+      // PERBAIKAN UTAMA: Kembalikan null jika benar-benar tidak ditemukan, jangan dipaksa membuka kuis default
+      return {
+        quiz: null,
+        questions: [],
+        result_rules: [],
+        notFound: true
+      };
+    }
   }
 
   return {
     quiz: quizRecord,
     questions,
-    result_rules: resultRules
+    result_rules: resultRules,
+    notFound: false
   };
 }
 
 /**
- * 3. Evaluasi & Kalkulasi Skor Kuis (Pure Client-Side + Logging Supabase)
- * Tidak memerlukan request ke endpoint lokal backend.
+ * 3. FUNGSI SIMPAN / BUAT KUIS BARU (SAVE & UPSERT)
+ * Digunakan oleh Panel Admin CMS untuk menyimpan data kuis ke Supabase secara utuh.
+ */
+export async function saveQuiz(quizData) {
+  try {
+    if (!isConfigured) {
+      throw new Error("Koneksi Supabase belum terkonfigurasi.");
+    }
+
+    // Buat ID unik berbasis timestamp jika belum ada
+    const quizId = quizData.id ? String(quizData.id) : String(Date.now());
+    const slug = quizData.slug || quizData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    const payload = {
+      id: quizId,
+      title: quizData.title,
+      slug: slug,
+      description: quizData.description || '',
+      category: quizData.category || 'Laptop & PC',
+      thumbnail: quizData.thumbnail || 'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=600&auto=format&fit=crop&q=80',
+      status: quizData.status || 'active',
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. Simpan/Update Data Kuis Utama
+    const { data: savedQuiz, error: quizError } = await supabase
+      .from('quizzes')
+      .upsert([payload])
+      .select()
+      .single();
+
+    if (quizError) throw quizError;
+
+    // 2. Simpan Pertanyaan jika disertakan
+    if (Array.isArray(quizData.questions) && quizData.questions.length > 0) {
+      for (const [idx, q] of quizData.questions.entries()) {
+        const qPayload = {
+          quiz_id: quizId,
+          question_text: q.question_text || q.title,
+          sort_order: idx + 1
+        };
+
+        const { data: savedQ, error: qErr } = await supabase
+          .from('quiz_questions')
+          .upsert([qPayload])
+          .select()
+          .single();
+
+        if (!qErr && savedQ && Array.isArray(q.options)) {
+          const optionsPayload = q.options.map((opt) => ({
+            question_id: savedQ.id,
+            option_text: opt.option_text || opt.text,
+            score_value: opt.score_value || opt.score || 0,
+            result_code: opt.result_code || 'RINGAN'
+          }));
+
+          await supabase.from('options').upsert(optionsPayload);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      quizId,
+      data: savedQuiz,
+      message: 'Kuis berhasil disimpan ke Supabase.'
+    };
+  } catch (err) {
+    console.error('❌ [saveQuiz Error]:', err.message);
+    return {
+      success: false,
+      message: err.message || 'Gagal menyimpan data kuis.'
+    };
+  }
+}
+
+/**
+ * 4. EVALUASI DAN KALKULASI SKOR KUIS
  */
 export async function submitQuizAnswers({ quiz, answers, questions = [], resultRules = [] }) {
   let totalScore = 0;
@@ -407,7 +482,6 @@ export async function submitQuizAnswers({ quiz, answers, questions = [], resultR
 
   const percentage = maxPossibleScore > 0 ? Math.min(100, Math.max(0, Math.round((totalScore / maxPossibleScore) * 100))) : 0;
 
-  // Pencocokan aturan hasil (Result Rules)
   let matchedRule = resultRules.find(
     (r) => percentage >= r.min_score && percentage <= r.max_score
   );
@@ -440,19 +514,11 @@ export async function submitQuizAnswers({ quiz, answers, questions = [], resultR
       }
     : defaultRule;
 
-  // Distribusi kode
-  const codeDistribution = {};
-  breakdown.forEach((b) => {
-    const c = b.result_code || 'DEFAULT';
-    codeDistribution[c] = (codeDistribution[c] || 0) + 1;
-  });
-
-  // Catat respons ke database Supabase jika sudah terhubung
   if (isConfigured) {
     try {
       await supabase.from('user_responses').insert([
         {
-          quiz_id: quiz?.id || 1,
+          quiz_id: quiz?.id || '1',
           session_id: 'guest_' + Math.random().toString(36).substring(2, 10),
           total_score: percentage,
           dominant_code: finalRule.code,
@@ -467,47 +533,61 @@ export async function submitQuizAnswers({ quiz, answers, questions = [], resultR
   return {
     response_id: Date.now(),
     quiz: {
-      id: quiz?.id || 1,
+      id: quiz?.id || '1',
       title: quiz?.title || 'Kuis Diagnostik CTW',
       category: quiz?.category || 'Umum'
     },
     score: percentage,
     total_score: percentage,
     dominant_code: finalRule.code,
-    code_distribution: codeDistribution,
     total_answered: answers.length,
     completed_at: new Date().toISOString(),
     result: finalRule,
-    bayes: {
-      severity_percentage: percentage,
-      confidence_percentage: 85,
-      dominant_hypothesis: percentage >= 71 ? 'KRITIS' : percentage >= 36 ? 'SEDANG' : 'RINGAN',
-      posterior_probabilities: {
-        ringan: percentage <= 35 ? 85 : 10,
-        sedang: percentage >= 36 && percentage <= 70 ? 80 : 15,
-        kritis: percentage >= 71 ? 90 : 5
-      }
-    },
     answers_payload: breakdown
   };
 }
 
 /**
- * Menghapus kuis berdasarkan ID menggunakan Supabase Client
- * @param {string|number} quizId - ID dari kuis yang akan dihapus
+ * 5. MENGHAPUS KUIS BERDASARKAN ID (Dengan Handshake Hapus Relasi)
+ * PERBAIKAN: Menghapus child records terlebih dahulu jika cascading delete belum aktif di Supabase.
  */
 export async function deleteQuiz(quizId) {
   try {
-    const cleanId = String(quizId).trim();
+    const cleanId = String(quizId || '').trim();
 
     if (!cleanId) {
       throw new Error("ID Kuis tidak valid.");
     }
 
-    const { data, error } = await supabase
+    if (!isConfigured) {
+      throw new Error("Koneksi Supabase belum aktif.");
+    }
+
+    // 1. Hapus aturan hasil terkait
+    try {
+      await supabase.from('quiz_result_rules').delete().eq('quiz_id', cleanId);
+    } catch (e) {}
+
+    // 2. Hapus pertanyaan terkait
+    try {
+      await supabase.from('quiz_questions').delete().eq('quiz_id', cleanId);
+    } catch (e) {}
+
+    // 3. Hapus kuis utama dari tabel quizzes (Mendukung ID string & integer)
+    let { error } = await supabase
       .from('quizzes')
       .delete()
       .eq('id', cleanId);
+
+    // Coba hapus sebagai Integer jika berbentuk angka
+    if (error && /^\d+$/.test(cleanId)) {
+      const numId = parseInt(cleanId, 10);
+      const { error: numErr } = await supabase
+        .from('quizzes')
+        .delete()
+        .eq('id', numId);
+      error = numErr;
+    }
 
     if (error) {
       throw error;
@@ -515,10 +595,10 @@ export async function deleteQuiz(quizId) {
 
     return {
       success: true,
-      message: 'Kuis berhasil dihapus.'
+      message: 'Kuis berhasil dihapus secara permanen dari database.'
     };
   } catch (err) {
-    console.error('Gagal menghapus kuis:', err.message);
+    console.error('❌ Gagal menghapus kuis:', err.message);
 
     return {
       success: false,
